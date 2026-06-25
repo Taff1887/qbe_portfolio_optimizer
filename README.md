@@ -33,7 +33,7 @@ Two portfolios with identical Sharpe ratios can have double the capital charge, 
 | 5 | **LAGIC-style capital** | `lagic_capital.py` | Simplified APRA/LAGIC asset risk charge: prescribed category stresses, a diversified aggregate, a worst-scenario panel, return on capital and marginal capital by asset. |
 | — | **Comparison** | `reporting.py` | Every portfolio compared across return, volatility, drawdown, capital efficiency, accounting impact, duration and diversification. |
 
-**Additional analyses** (because a multi-lens framework should keep adding lenses): a **capital-efficient frontier** and a **max-return-on-capital** portfolio (optimise return per unit of capital, not just Sharpe); **risk budgeting** (each asset's and currency's share of portfolio risk, diversification ratio, correlation matrix, marginal efficiency); and **diagnostics** (liquidity tiers, concentration / effective number of assets, rating distribution, surplus & coverage with surplus-at-risk, and realised behaviour through the GFC/COVID/2022 episodes). A single comprehensive **`outputs/report.md`** pulls every lens together with embedded charts.
+**Additional analyses** (because a multi-lens framework should keep adding lenses): a **capital-efficient frontier** and a **max-return-on-capital** portfolio (optimise return per unit of capital, not just Sharpe); **risk budgeting** (each asset's and currency's share of portfolio risk, diversification ratio, correlation matrix, marginal efficiency); and **diagnostics** (liquidity tiers, concentration / effective number of assets, rating distribution, surplus & coverage with surplus-at-risk, and realised behaviour through the GFC/COVID/2022 episodes). Finally, a **within-asset-class** lens (`intra_asset.py`): the top-level SAA is fixed, so it decomposes each class into sub-sleeves (e.g. the AUD sovereign curve, IG by rating/sector, equity by region/style) and finds the mix that earns **more return at the same risk** - small, repeatable *implementation* alpha (a few bps per class) orthogonal to the policy allocation. A single comprehensive **`outputs/report.md`** pulls every lens together with embedded charts.
 
 ## Portfolio context (insurer assumptions)
 
@@ -69,6 +69,7 @@ qbe_portfolio_optimizer/
     lagic_capital.py     # lens 5: LAGIC-style capital
     risk_attribution.py  # extra: risk budgeting, diversification, marginal efficiency
     diagnostics.py       # extra: liquidity, concentration, rating, surplus, historical stress
+    intra_asset.py       # extra: within-asset-class diversification & same-risk return pickup
     reporting.py         # tables, charts, markdown (incl. full report.md)
 ```
 

@@ -239,6 +239,35 @@ def chart_liquidity_and_rating(liq: dict, rating: dict) -> None:
     save_chart(fig, "15_liquidity_and_rating")
 
 
+def chart_intra_asset(intra: dict) -> None:
+    s = intra["summary"]
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    axes[0].bar(s.index.astype(str), s["incremental_return_bps"], color="#117733")
+    for i, v in enumerate(s["incremental_return_bps"]):
+        axes[0].text(i, v, f"+{v:.0f}", ha="center", va="bottom", fontsize=8)
+    axes[0].set_ylabel("Same-risk return pickup (bps)")
+    axes[0].set_title(f"Within-class return uplift (portfolio +{intra['portfolio_return_uplift_bps']:.1f} bps)")
+    axes[0].tick_params(axis="x", rotation=25)
+    axes[1].bar(s.index.astype(str), s["div_vol_saved_bps"], color="#0072B2")
+    axes[1].set_ylabel("Vol saved by diversifying (bps)")
+    axes[1].set_title("Intra-class diversification benefit")
+    axes[1].tick_params(axis="x", rotation=25)
+    save_chart(fig, "17_intra_asset_uplift")
+
+
+def chart_intra_weights(intra: dict, class_name: str) -> None:
+    w = intra["per_class"][class_name]["weights"][["benchmark", "enhanced"]]
+    fig, ax = plt.subplots(figsize=(9, 5))
+    x = np.arange(len(w.index))
+    ax.bar(x - 0.2, w["benchmark"] * 100, 0.4, label="Benchmark mix", color="#999999")
+    ax.bar(x + 0.2, w["enhanced"] * 100, 0.4, label="Enhanced (same-risk)", color="#117733")
+    ax.set_xticks(x, w.index, rotation=20, ha="right")
+    ax.set_ylabel("Weight within class (%)")
+    ax.set_title(f"{class_name}: benchmark vs enhanced sub-allocation")
+    ax.legend()
+    save_chart(fig, "18_intra_class_weights")
+
+
 def chart_marginal_efficiency(marg: pd.DataFrame) -> None:
     fig, ax = plt.subplots(figsize=(9, 6))
     sizes = (marg["weight"] * 1500 + 20)
@@ -391,7 +420,19 @@ def write_full_report(results: dict) -> None:
     m.append(img("16_marginal_efficiency", "Figure 12. Return vs marginal capital per asset (bubble = weight)."))
     m.append("Realised behaviour through the embedded historical episodes:\n")
     m.append(_df_to_md(dg["historical_stress"].round(4)) + "\n")
-    m.append("## 10. Conclusion\n")
+    m.append("## 10. Within-asset-class diversification (implementation alpha)\n")
+    m.append(img("17_intra_asset_uplift", "Figure 13. Same-risk return pickup and diversification benefit by class."))
+    intra = results["intra_asset"]
+    m.append("The strategic allocation is fixed, but inside each class a better mix of sub-sleeves can add return at the "
+             "**same risk**. Holding volatility at each class's benchmark level, the enhanced sub-allocation adds a few "
+             f"basis points per class - **+{intra['portfolio_return_uplift_bps']:.1f} bps at the portfolio level, with the "
+             "SAA completely unchanged**.\n")
+    m.append(_df_to_md(intra["summary"].round(3)) + "\n")
+    m.append(img("18_intra_class_weights", "Figure 14. AUD Sovereign: the enhanced mix tilts to the belly of the curve "
+                 "(5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk."))
+    m.append("This is genuine *implementation* alpha: small, repeatable and orthogonal to the top-level allocation - "
+             "exactly where an insurer with a constrained SAA can still add value.\n")
+    m.append("## 11. Conclusion\n")
     m.append("No single optimisation captures an insurer's problem. The Min-Variance and Max-RoC portfolios are far more "
              "capital-efficient than the baseline; the Max-Sharpe portfolio improves risk-adjusted return; raising risk to "
              "20% lifts return but costs capital and Sharpe. The right choice depends on which lens - return, drawdown, "
@@ -440,6 +481,9 @@ def generate_all(results: dict) -> None:
     save_table(dg["liquidity"]["by_tier"].rename("weight").to_frame(), "liquidity_profile.csv")
     save_table(pd.Series(dg["surplus"]).round(5).to_frame("value"), "surplus_analysis.csv")
     save_table(dg["historical_stress"].round(5), "historical_stress.csv")
+    intra = results["intra_asset"]
+    save_table(intra["summary"].round(4), "intra_asset_uplift.csv")
+    save_table(intra["per_class"]["AUD Sovereign"]["weights"].round(4), "intra_class_weights_aud_sovereign.csv")
 
     # charts
     chart_efficient_frontier(results["frontier"], {
@@ -461,6 +505,8 @@ def generate_all(results: dict) -> None:
     chart_capital_frontier(results["capital_frontier"], portfolios, config)
     chart_liquidity_and_rating(dg["liquidity"], dg["rating"])
     chart_marginal_efficiency(ra["marginal_efficiency"])
+    chart_intra_asset(intra)
+    chart_intra_weights(intra, "AUD Sovereign")
 
     write_markdown(results)
     write_full_report(results)

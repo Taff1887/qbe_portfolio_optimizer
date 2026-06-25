@@ -1,0 +1,139 @@
+"""Extra lens - diversification and selection WITHIN an asset class.
+
+The top-level strategic allocation (85/15, currency mix) is largely fixed for an
+insurer. But inside each asset class there is room to (a) diversify across sub-
+sleeves to cut idiosyncratic risk and (b) tilt toward better risk-adjusted sub-
+sleeves - small, repeatable "implementation" pickups that do not change the SAA.
+
+For each decomposed class we compare three intra-class mixes:
+- **Concentrated**: 100% in the single largest sub-sleeve (no diversification).
+- **Benchmark**: the default `benchmark_weight` mix (diversified but untilted).
+- **Optimised**: a constrained max-Sharpe mix across the sub-sleeves.
+
+We then aggregate the per-class return pickup to a portfolio-level uplift, weighting
+each class by its share of the book - holding the SAA unchanged.
+
+Sub-sleeve returns are generated from the parent sleeve's return as a shared
+factor plus sub-specific dispersion (so they are highly but not perfectly
+correlated). Forward `exp_return` assumptions drive the optimisation; the
+generated covariance drives risk.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+from scipy.optimize import minimize
+
+from data_loader import MarketData
+from utils import MONTHS_PER_YEAR
+
+
+def generate_sub_returns(class_name: str, spec: dict, parent: pd.Series, seed: int) -> pd.DataFrame:
+    """Monthly returns for the sub-sleeves of one class, tied to the parent."""
+    rho = spec["intra_correlation"]
+    rng = np.random.default_rng(seed)
+    z = ((parent - parent.mean()) / parent.std(ddof=0)).to_numpy()   # standardised parent
+    out = {}
+    for s in spec["components"]:
+        tv = s["ann_vol"] / np.sqrt(MONTHS_PER_YEAR)
+        idio = rng.normal(0.0, 1.0, len(z))
+        out[s["name"]] = s["exp_return"] / MONTHS_PER_YEAR + tv * (np.sqrt(rho) * z + np.sqrt(1 - rho) * idio)
+    return pd.DataFrame(out, index=parent.index)
+
+
+def _solve(objective, n: int, max_w: float, extra_cons=None) -> np.ndarray:
+    cons = [{"type": "eq", "fun": lambda w: w.sum() - 1.0}]
+    if extra_cons:
+        cons += extra_cons
+    res = minimize(objective, np.full(n, 1.0 / n), method="SLSQP", bounds=[(0.0, max_w)] * n,
+                   constraints=cons, options={"maxiter": 800, "ftol": 1e-12})
+    w = np.clip(res.x, 0, None)
+    return w / w.sum() if w.sum() > 0 else np.full(n, 1.0 / n)
+
+
+def _max_return_at_vol(mu, cov, vol_cap, max_w) -> np.ndarray:
+    """Maximise expected return subject to volatility <= vol_cap (same-risk uplift)."""
+    cons = [{"type": "ineq", "fun": lambda w, vc=vol_cap: vc ** 2 - w @ cov @ w}]
+    return _solve(lambda w: -(w @ mu), len(mu), max_w, cons)
+
+
+def _max_sharpe(mu, cov, rf, max_w) -> np.ndarray:
+    def neg_sharpe(w):
+        vol = np.sqrt(max(w @ cov @ w, 1e-12))
+        return -((w @ mu) - rf) / vol
+    return _solve(neg_sharpe, len(mu), max_w)
+
+
+def analyse_class(class_name: str, spec: dict, parent: pd.Series, config: dict, seed: int) -> dict:
+    rf = config["portfolio"].get("risk_free", 0.0)
+    max_w = config["optimiser"].get("intra_max_weight", 0.40)
+    subs = spec["components"]
+    names = [s["name"] for s in subs]
+
+    sub_ret = generate_sub_returns(class_name, spec, parent, seed)
+    mu = np.array([s["exp_return"] for s in subs])
+    cov = (sub_ret.cov() * MONTHS_PER_YEAR).to_numpy()
+
+    bench = np.array([s["benchmark_weight"] for s in subs], float)
+    bench = bench / bench.sum()
+    conc = np.zeros(len(subs)); conc[int(np.argmax(bench))] = 1.0          # single largest sub-sleeve
+
+    def metrics(w):
+        ret = float(w @ mu)
+        vol = float(np.sqrt(max(w @ cov @ w, 0.0)))
+        return {"exp_return": ret, "volatility": vol, "sharpe": (ret - rf) / vol if vol > 0 else np.nan}
+
+    mb = metrics(bench)
+    # Headline: most return achievable WITHOUT taking more risk than the benchmark mix.
+    enhanced = _max_return_at_vol(mu, cov, mb["volatility"], max_w)
+    best_sharpe = _max_sharpe(mu, cov, rf, max_w)
+    mc, me, ms = metrics(conc), metrics(enhanced), metrics(best_sharpe)
+
+    # Diversification benefit = weighted-average standalone vol minus the diversified
+    # mix vol (always >= 0 because intra-class correlation < 1).
+    wavg_vol = float(bench @ np.sqrt(np.diag(cov)))
+    return {
+        "names": names,
+        "weights": pd.DataFrame({"benchmark": bench, "enhanced": enhanced, "max_sharpe": best_sharpe}, index=names),
+        "concentrated": mc,
+        "benchmark": mb,
+        "enhanced": me,                # same risk as benchmark, more return
+        "max_sharpe": ms,              # best risk-adjusted (secondary view)
+        "weighted_avg_vol": wavg_vol,
+        "diversification_vol_saved": wavg_vol - mb["volatility"],           # >= 0
+        "incremental_return": me["exp_return"] - mb["exp_return"],          # SAME-RISK return pickup
+        "incremental_sharpe": ms["sharpe"] - mb["sharpe"],
+    }
+
+
+def run_intra_asset(market: MarketData, config: dict) -> dict:
+    """Per-class within-asset-class analysis + portfolio-level uplift."""
+    subs_cfg = config.get("sub_sleeves", {})
+    seed0 = config["meta"].get("random_seed", 7)
+    baseline = market.baseline_weights
+
+    per_class = {}
+    rows = []
+    for i, (cls, spec) in enumerate(subs_cfg.items()):
+        if cls not in market.returns.columns:
+            continue
+        res = analyse_class(cls, spec, market.returns[cls], config, seed0 + 17 * (i + 1))
+        per_class[cls] = res
+        cw = float(baseline.get(cls, 0.0))
+        rows.append({
+            "asset_class": cls,
+            "class_weight": cw,
+            "bench_return": res["benchmark"]["exp_return"],
+            "enhanced_return": res["enhanced"]["exp_return"],
+            "incremental_return_bps": res["incremental_return"] * 1e4,    # same-risk pickup
+            "div_vol_saved_bps": res["diversification_vol_saved"] * 1e4,
+            "max_sharpe_uplift": res["incremental_sharpe"],
+            "portfolio_return_uplift_bps": cw * res["incremental_return"] * 1e4,
+        })
+    summary = pd.DataFrame(rows).set_index("asset_class")
+    return {
+        "per_class": per_class,
+        "summary": summary,
+        "portfolio_return_uplift_bps": float(summary["portfolio_return_uplift_bps"].sum()),
+    }

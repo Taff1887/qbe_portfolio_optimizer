@@ -37,6 +37,53 @@ currencies:
 optimiser:
   default_max_weight: 0.25
   frontier_points: 30
+  intra_max_weight: 0.40      # cap on any single sub-sleeve within an asset class
+
+# -----------------------------------------------------------------------------
+# Sub-sleeve universe for the WITHIN-asset-class lens (intra_asset.py). The top-
+# level SAA is fixed; here we ask whether a better *mix inside each class* (vs the
+# default `benchmark_weight`) adds small, repeatable return per unit of risk.
+# `intra_correlation` is the (high) correlation among sub-sleeves of one class.
+# To use real data, replace these with index/sub-strategy returns and weights.
+# -----------------------------------------------------------------------------
+sub_sleeves:
+  "Listed Equities":
+    intra_correlation: 0.78
+    components:
+      - { name: "US Equity",         exp_return: 0.078, ann_vol: 0.150, benchmark_weight: 0.50 }
+      - { name: "Europe Equity",     exp_return: 0.075, ann_vol: 0.165, benchmark_weight: 0.18 }
+      - { name: "Australia Equity",  exp_return: 0.080, ann_vol: 0.155, benchmark_weight: 0.12 }
+      - { name: "EM Equity",         exp_return: 0.090, ann_vol: 0.220, benchmark_weight: 0.12 }
+      - { name: "Global Low-Vol",    exp_return: 0.072, ann_vol: 0.110, benchmark_weight: 0.08 }
+  "IG Credit":
+    intra_correlation: 0.82
+    components:
+      - { name: "A Financials",      exp_return: 0.048, ann_vol: 0.052, benchmark_weight: 0.30 }
+      - { name: "A Industrials",     exp_return: 0.049, ann_vol: 0.050, benchmark_weight: 0.25 }
+      - { name: "BBB Industrials",   exp_return: 0.055, ann_vol: 0.062, benchmark_weight: 0.20 }
+      - { name: "BBB Utilities",     exp_return: 0.052, ann_vol: 0.054, benchmark_weight: 0.15 }
+      - { name: "A Utilities",       exp_return: 0.047, ann_vol: 0.047, benchmark_weight: 0.10 }
+  "High Yield":
+    intra_correlation: 0.80
+    components:
+      - { name: "BB",                exp_return: 0.068, ann_vol: 0.085, benchmark_weight: 0.35 }
+      - { name: "B",                 exp_return: 0.079, ann_vol: 0.108, benchmark_weight: 0.35 }
+      - { name: "CCC",               exp_return: 0.097, ann_vol: 0.165, benchmark_weight: 0.20 }
+      - { name: "BB Quality (ex-en)", exp_return: 0.066, ann_vol: 0.076, benchmark_weight: 0.10 }
+  "AUD Sovereign":
+    intra_correlation: 0.88
+    components:
+      - { name: "AUD 2y",            exp_return: 0.039, ann_vol: 0.020, benchmark_weight: 0.25 }
+      - { name: "AUD 5y",            exp_return: 0.041, ann_vol: 0.050, benchmark_weight: 0.30 }
+      - { name: "AUD 10y",           exp_return: 0.043, ann_vol: 0.082, benchmark_weight: 0.25 }
+      - { name: "AUD 20y",           exp_return: 0.045, ann_vol: 0.135, benchmark_weight: 0.20 }
+  "Private Credit":
+    intra_correlation: 0.60
+    components:
+      - { name: "Direct Lending",    exp_return: 0.085, ann_vol: 0.060, benchmark_weight: 0.40 }
+      - { name: "Mezzanine",         exp_return: 0.095, ann_vol: 0.092, benchmark_weight: 0.25 }
+      - { name: "Special Situations", exp_return: 0.100, ann_vol: 0.120, benchmark_weight: 0.20 }
+      - { name: "Asset-Based",       exp_return: 0.080, ann_vol: 0.050, benchmark_weight: 0.15 }
 
 # -----------------------------------------------------------------------------
 # Instantaneous stress scenarios (lens 2). Shocks are applied via each asset's

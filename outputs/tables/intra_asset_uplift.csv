@@ -1,0 +1,6 @@
+asset_class,class_weight,bench_return,enhanced_return,incremental_return_bps,div_vol_saved_bps,max_sharpe_uplift,portfolio_return_uplift_bps
+Listed Equities,0.03,0.0787,0.0799,12.5157,133.21,0.0478,0.3755
+IG Credit,0.14,0.0502,0.0509,7.3326,41.3023,0.0154,1.0266
+High Yield,0.02,0.0775,0.0776,1.8553,78.3828,0.0244,0.0371
+AUD Sovereign,0.167,0.0418,0.042,1.5784,30.4066,0.1037,0.2636
+Private Credit,0.03,0.0898,0.0901,3.0913,122.6588,0.1408,0.0927

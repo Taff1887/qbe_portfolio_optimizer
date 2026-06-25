@@ -134,7 +134,29 @@ Realised behaviour through the embedded historical episodes:
 | Rate sell-off 2022 | - | -0.1636 |
 | Max drawdown | 2023-12-31 | -0.1672 |
 
-## 10. Conclusion
+## 10. Within-asset-class diversification (implementation alpha)
+
+![Figure 13. Same-risk return pickup and diversification benefit by class.](charts/17_intra_asset_uplift.png)
+
+*Figure 13. Same-risk return pickup and diversification benefit by class.*
+
+The strategic allocation is fixed, but inside each class a better mix of sub-sleeves can add return at the **same risk**. Holding volatility at each class's benchmark level, the enhanced sub-allocation adds a few basis points per class - **+1.8 bps at the portfolio level, with the SAA completely unchanged**.
+
+| metric | class_weight | bench_return | enhanced_return | incremental_return_bps | div_vol_saved_bps | max_sharpe_uplift | portfolio_return_uplift_bps |
+|---|---|---|---|---|---|---|---|
+| Listed Equities | 0.0300 | 0.0790 | 0.0800 | 12.5160 | 133.2100 | 0.0480 | 0.3750 |
+| IG Credit | 0.1400 | 0.0500 | 0.0510 | 7.3330 | 41.3020 | 0.0150 | 1.0270 |
+| High Yield | 0.0200 | 0.0770 | 0.0780 | 1.8550 | 78.3830 | 0.0240 | 0.0370 |
+| AUD Sovereign | 0.1670 | 0.0420 | 0.0420 | 1.5780 | 30.4070 | 0.1040 | 0.2640 |
+| Private Credit | 0.0300 | 0.0900 | 0.0900 | 3.0910 | 122.6590 | 0.1410 | 0.0930 |
+
+![Figure 14. AUD Sovereign: the enhanced mix tilts to the belly of the curve (5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk.](charts/18_intra_class_weights.png)
+
+*Figure 14. AUD Sovereign: the enhanced mix tilts to the belly of the curve (5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk.*
+
+This is genuine *implementation* alpha: small, repeatable and orthogonal to the top-level allocation - exactly where an insurer with a constrained SAA can still add value.
+
+## 11. Conclusion
 
 No single optimisation captures an insurer's problem. The Min-Variance and Max-RoC portfolios are far more capital-efficient than the baseline; the Max-Sharpe portfolio improves risk-adjusted return; raising risk to 20% lifts return but costs capital and Sharpe. The right choice depends on which lens - return, drawdown, capital, earnings stability or ALM - is binding for the business at the time. This framework makes that trade-off explicit.
 

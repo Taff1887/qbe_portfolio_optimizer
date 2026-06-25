@@ -12,6 +12,7 @@ from __future__ import annotations
 import diagnostics
 import duration_model
 import earnings_model
+import intra_asset
 import lagic_capital
 import optimizer
 import reporting
@@ -58,6 +59,7 @@ def build_results(regenerate: bool = False) -> dict:
         "duration_example": earnings_model.duration_earnings_example(config),
         "risk_attribution": risk_attribution.run_risk_attribution(base, config),
         "diagnostics": diagnostics.run_diagnostics(base, config, worst_total),
+        "intra_asset": intra_asset.run_intra_asset(market, config),
     }
 
 
@@ -87,6 +89,8 @@ def print_summary(results: dict) -> None:
     print(f"Lens 6  Earnings   : annual earnings vol {earn['earnings_volatility']:.2%}  |  "
           f"P(miss {earn['plan_target']:.1%} plan) {earn['plan_miss_prob']:.0%}  |  "
           f"carry funds {earn['carry_share_of_return']:.0%} of return")
+    print(f"Extra   Intra-class: same-risk return pickup from better within-class mix "
+          f"= +{results['intra_asset']['portfolio_return_uplift_bps']:.1f} bps (SAA unchanged)")
     print("=" * 68)
     print("Outputs written to outputs/ (tables/, charts/, summary_report.md)")
 
