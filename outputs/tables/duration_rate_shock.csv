@@ -1,0 +1,11 @@
+,value
+shock,0.01
+asset_mtm,-0.04208
+pnl_earnings_impact,0.00484
+oci_impact,-0.00194
+liability_offset,0.04498
+economic_surplus_impact,0.00289
+economic_minus_pnl,-0.00194
+pnl_dollar_duration,4.014
+oci_dollar_duration,0.1945
+liability_dollar_duration,4.498

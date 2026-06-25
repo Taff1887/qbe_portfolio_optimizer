@@ -1,0 +1,21 @@
+name,weight
+AUD Sovereign,0.167
+USD Sovereign,0.143
+GBP Sovereign,0.05
+EUR Sovereign,0.05
+NZD Sovereign,0.02
+CAD Sovereign,0.02
+IG Credit,0.14
+Corporate Credit,0.09
+CLO AAA,0.04
+ABS,0.03
+RMBS,0.03
+CMBS,0.03
+Cash,0.04
+High Yield,0.02
+CLO BBB,0.015
+Private Credit,0.03
+Infra Debt,0.02
+Infra Equity,0.02
+Listed Equities,0.03
+Unlisted Property,0.015

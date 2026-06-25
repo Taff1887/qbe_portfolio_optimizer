@@ -1,0 +1,9 @@
+scenario,total_impact,pnl_impact,oci_impact
+Rates +100bp,-0.04208,-0.04014,-0.00194
+Rates -100bp,0.04208,0.04014,0.00194
+Credit +150bp,-0.0279,-0.02362,-0.00427
+Equity -30%,-0.03406,-0.01464,-0.01942
+Property -15%,-0.00502,-0.00135,-0.00368
+Structured +200bp,-0.0197,-0.01678,-0.00292
+Combined recession,-0.05988,-0.02695,-0.03293
+Inflation / rates up,-0.11375,-0.09965,-0.0141

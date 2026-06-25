@@ -1,0 +1,5 @@
+book,scenario,asset_mtm,economic_mtm,earnings
+"Short book (3y, unmatched)",Rates +100bp,-0.03,0.04,0.08
+"Short book (3y, unmatched)",Rates -100bp,0.03,-0.04,-0.0
+Long matched book (7y),Rates +100bp,-0.07,0.0,0.048
+Long matched book (7y),Rates -100bp,0.07,0.0,0.048
