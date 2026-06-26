@@ -14,6 +14,7 @@ Classic mean-variance optimisation answers one question - return per unit of vol
 | Max-Sharpe | 0.0514 | 0.0175 | 0.0644 | 2.1606 | -0.0482 | 0.0521 | 1.8835 | 0.8955 | 0.1045 | 7.1870 | 0.0248 | 2.0739 |
 | Min-Variance | 0.0472 | 0.0160 | 0.0574 | 1.9369 | -0.0522 | 0.0472 | 2.1437 | 1.0000 | 0.0000 | 7.7668 | 0.0159 | 2.9704 |
 | Max-RoC | 0.0439 | 0.0290 | 0.0707 | 1.5163 | -0.1609 | 0.0439 | 3.8932 | 1.0000 | 0.0000 | 9.0806 | 0.0113 | 3.8673 |
+| Capital-Budgeted | 0.0586 | 0.0331 | 0.0808 | 1.6141 | -0.1324 | 0.0601 | 2.8912 | 0.8000 | 0.2000 | 6.3089 | 0.0371 | 1.5806 |
 | Risk 20% | 0.0526 | 0.0350 | 0.0845 | 1.6309 | -0.1640 | 0.0494 | 4.0647 | 0.8000 | 0.2000 | 7.3115 | 0.0432 | 1.2197 |
 
 ## 2. Lens 1 - Mean-variance optimisation
@@ -68,7 +69,7 @@ The binding capital charge is **3.71%** of assets (binding basis: Diversified ag
 
 *Figure 5. Capital-efficient frontier (return vs capital).*
 
-Optimising return **per unit of capital** gives the Max-RoC portfolio: expected return **4.39%** at capital charge **1.13%** (RoC 3.87x).
+Optimising return **per unit of capital** gives the Max-RoC portfolio: expected return **4.39%** at capital charge **1.13%** (RoC 3.87x). Conversely, **holding capital at the baseline's level**, the capital-budgeted optimiser lifts expected return to **5.86%** (vs baseline 5.11%) - more return for the same capital. For an insurer, capital - not volatility - is usually the binding constraint.
 
 ## 5. Lens 3/6 - Through-time earnings & carry
 
@@ -81,6 +82,12 @@ Annual earnings (P&L) volatility is **5.88%**; the chance of missing the 4.5% pl
 ![Figure 7. Duration & earnings stability: a duration-matched book earns steady carry whichever way rates move; an unmatched book is an unhedged rate bet.](charts/11_duration_earnings_example.png)
 
 *Figure 7. Duration & earnings stability: a duration-matched book earns steady carry whichever way rates move; an unmatched book is an unhedged rate bet.*
+
+![Figure 7b. Bootstrap distribution of plan-year P&L, with earnings-at-risk and CTE95.](charts/19_earnings_at_risk.png)
+
+*Figure 7b. Bootstrap distribution of plan-year P&L, with earnings-at-risk and CTE95.*
+
+Block-bootstrapping the monthly P&L into plan-year outcomes gives an **earnings-at-risk (5%) of 1.28%** and a **CTE95 of -0.74%** (the average of the worst 1-in-20 years) against a 4.5% plan - the downside an insurer's capital must absorb.
 
 ## 6. Lens 4 - Duration / ALM
 
@@ -109,6 +116,12 @@ Diversification ratio **1.75** (1 = none); average pairwise correlation **0.25**
 | USD Sovereign | 13.5000 |
 | Corporate Credit | 11.8000 |
 | Listed Equities | 7.1000 |
+
+![Figure 10b. Which sleeves drive annual earnings (P&L) volatility.](charts/20_earnings_vol_contribution.png)
+
+*Figure 10b. Which sleeves drive annual earnings (P&L) volatility.*
+
+Earnings (P&L) volatility is concentrated in **AUD Sovereign** and **USD Sovereign** (22% and 20% of P&L variance) - the long-duration P&L bonds whose mark-to-market flows through earnings. This is distinct from total-risk contribution: an asset can be small in the risk budget yet large in the *earnings* budget.
 
 ## 8. Liquidity, credit quality & solvency
 
@@ -142,19 +155,21 @@ Realised behaviour through the embedded historical episodes:
 
 The strategic allocation is fixed, but inside each class a better mix of sub-sleeves can add return at the **same risk**. Holding volatility at each class's benchmark level, the enhanced sub-allocation adds a few basis points per class - **+1.8 bps at the portfolio level, with the SAA completely unchanged**.
 
-| metric | class_weight | bench_return | enhanced_return | incremental_return_bps | div_vol_saved_bps | max_sharpe_uplift | portfolio_return_uplift_bps |
+| metric | class_weight | incremental_return_bps | oos_pickup_net_bps | div_vol_saved_bps | oos_turnover | portfolio_uplift_bps | portfolio_oos_uplift_bps |
 |---|---|---|---|---|---|---|---|
-| Listed Equities | 0.0300 | 0.0790 | 0.0800 | 12.5160 | 133.2100 | 0.0480 | 0.3750 |
-| IG Credit | 0.1400 | 0.0500 | 0.0510 | 7.3330 | 41.3020 | 0.0150 | 1.0270 |
-| High Yield | 0.0200 | 0.0770 | 0.0780 | 1.8550 | 78.3830 | 0.0240 | 0.0370 |
-| AUD Sovereign | 0.1670 | 0.0420 | 0.0420 | 1.5780 | 30.4070 | 0.1040 | 0.2640 |
-| Private Credit | 0.0300 | 0.0900 | 0.0900 | 3.0910 | 122.6590 | 0.1410 | 0.0930 |
+| Listed Equities | 0.0300 | 12.5160 | 36.6210 | 133.2100 | 0.0170 | 0.3750 | 1.0990 |
+| IG Credit | 0.1400 | 7.3330 | 8.2010 | 41.3020 | 0.0200 | 1.0270 | 1.1480 |
+| High Yield | 0.0200 | 1.8550 | -29.3820 | 78.3830 | 0.0320 | 0.0370 | -0.5880 |
+| AUD Sovereign | 0.1670 | 1.5780 | -9.5840 | 30.4070 | 0.0030 | 0.2640 | -1.6000 |
+| Private Credit | 0.0300 | 3.0910 | -14.1870 | 122.6590 | 0.0130 | 0.0930 | -0.4260 |
 
 ![Figure 14. AUD Sovereign: the enhanced mix tilts to the belly of the curve (5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk.](charts/18_intra_class_weights.png)
 
 *Figure 14. AUD Sovereign: the enhanced mix tilts to the belly of the curve (5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk.*
 
 This is genuine *implementation* alpha: small, repeatable and orthogonal to the top-level allocation - exactly where an insurer with a constrained SAA can still add value.
+
+**Out-of-sample and net of trading costs** (walk-forward, annual rebalancing) the picture is more sober: the net portfolio pickup is only **-0.4 bps**. It is positive and material in **Listed Equities and IG Credit** - where the sub-sleeve dispersion is *structural* (region/style, quality/sector) - but negative in **High Yield, the sovereign curve and Private Credit**, where realised sub-returns are too noisy for the tilt to pay reliably. The honest conclusion: harvest intra-class implementation alpha **only where the dispersion is structural**, size it modestly, and rebalance slowly to keep turnover low. Out-of-sample testing is exactly what separates a real edge from an in-sample mirage.
 
 ## 11. Conclusion
 

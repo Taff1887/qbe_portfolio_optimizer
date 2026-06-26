@@ -268,6 +268,31 @@ def chart_intra_weights(intra: dict, class_name: str) -> None:
     save_chart(fig, "18_intra_class_weights")
 
 
+def chart_earnings_at_risk(er: dict, plan: float) -> None:
+    dist = er["baseline_distribution"] * 100
+    t = er["table"].loc["Baseline"]
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.hist(dist, bins=50, color="#0072B2", alpha=0.75)
+    ax.axvline(plan * 100, color="#222", ls="--", lw=1.3, label=f"Plan {plan:.1%}")
+    ax.axvline(t["mean_annual_pnl"] * 100, color="#2E8B57", lw=1.2, label=f"Mean {t['mean_annual_pnl']:.1%}")
+    ax.axvline(t["earnings_at_risk_5pc"] * 100, color="#C0392B", lw=1.5, label=f"EaR 5% {t['earnings_at_risk_5pc']:.1%}")
+    ax.axvline(t["cte_95"] * 100, color="#8C564B", lw=1.5, ls=":", label=f"CTE95 {t['cte_95']:.1%}")
+    ax.set_xlabel("Plan-year P&L (%)")
+    ax.set_title("Earnings-at-risk: bootstrap distribution of plan-year P&L (Baseline)")
+    ax.legend(fontsize=8)
+    save_chart(fig, "19_earnings_at_risk")
+
+
+def chart_earnings_vol_contribution(s: pd.Series) -> None:
+    s = s[s.abs() > 0.005].sort_values()
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ax.barh(s.index, s.values * 100, color="#D55E00")
+    ax.axvline(0, color="#444", lw=0.8)
+    ax.set_xlabel("% of annual earnings (P&L) volatility")
+    ax.set_title("Earnings-volatility contribution by asset")
+    save_chart(fig, "20_earnings_vol_contribution")
+
+
 def chart_marginal_efficiency(marg: pd.DataFrame) -> None:
     fig, ax = plt.subplots(figsize=(9, 6))
     sizes = (marg["weight"] * 1500 + 20)
@@ -388,7 +413,10 @@ def write_full_report(results: dict) -> None:
     m.append(img("14_capital_efficient_frontier", "Figure 5. Capital-efficient frontier (return vs capital)."))
     m.append(f"Optimising return **per unit of capital** gives the Max-RoC portfolio: expected return "
              f"**{pf['Max-RoC'].expected_return():.2%}** at capital charge **{comp.loc['Max-RoC','capital_charge']:.2%}** "
-             f"(RoC {comp.loc['Max-RoC','return_on_capital']:.2f}x).\n")
+             f"(RoC {comp.loc['Max-RoC','return_on_capital']:.2f}x). Conversely, **holding capital at the baseline's "
+             f"level**, the capital-budgeted optimiser lifts expected return to "
+             f"**{pf['Capital-Budgeted'].expected_return():.2%}** (vs baseline {base.expected_return():.2%}) - more return "
+             "for the same capital. For an insurer, capital - not volatility - is usually the binding constraint.\n")
     m.append("## 5. Lens 3/6 - Through-time earnings & carry\n")
     m.append(img("08_earnings_vs_plan", "Figure 6. Annual earnings vs plan (red = missed)."))
     m.append(f"Annual earnings (P&L) volatility is **{earn['earnings_volatility']:.2%}**; the chance of missing the "
@@ -396,6 +424,11 @@ def write_full_report(results: dict) -> None:
              f"{earn['carry_share_of_return']:.0%}** of the return.\n")
     m.append(img("11_duration_earnings_example", "Figure 7. Duration & earnings stability: a duration-matched book earns "
                  "steady carry whichever way rates move; an unmatched book is an unhedged rate bet."))
+    et = results["earnings_risk"]["table"].loc["Baseline"]
+    m.append(img("19_earnings_at_risk", "Figure 7b. Bootstrap distribution of plan-year P&L, with earnings-at-risk and CTE95."))
+    m.append(f"Block-bootstrapping the monthly P&L into plan-year outcomes gives an **earnings-at-risk (5%) of "
+             f"{et['earnings_at_risk_5pc']:.2%}** and a **CTE95 of {et['cte_95']:.2%}** (the average of the worst 1-in-20 "
+             f"years) against a {et['plan_target']:.1%} plan - the downside an insurer's capital must absorb.\n")
     m.append("## 6. Lens 4 - Duration / ALM\n")
     m.append(img("09_duration_gap", "Figure 8. Asset vs liability duration by currency."))
     rs = dur["rate_shock"]
@@ -409,6 +442,12 @@ def write_full_report(results: dict) -> None:
     m.append(f"Diversification ratio **{ra['diversification_ratio']:.2f}** (1 = none); average pairwise correlation "
              f"**{ra['avg_pairwise_correlation']:.2f}**. Top risk contributors:\n")
     m.append(_df_to_md((ra["risk_by_asset"].head(5) * 100).round(1).rename("risk_%").to_frame()) + "\n")
+    m.append(img("20_earnings_vol_contribution", "Figure 10b. Which sleeves drive annual earnings (P&L) volatility."))
+    evc = ra["earnings_vol_contribution"]
+    m.append(f"Earnings (P&L) volatility is concentrated in **{evc.index[0]}** and **{evc.index[1]}** "
+             f"({evc.iloc[0]:.0%} and {evc.iloc[1]:.0%} of P&L variance) - the long-duration P&L bonds whose "
+             "mark-to-market flows through earnings. This is distinct from total-risk contribution: an asset can be small "
+             "in the risk budget yet large in the *earnings* budget.\n")
     m.append("## 8. Liquidity, credit quality & solvency\n")
     m.append(img("15_liquidity_and_rating", "Figure 11. Liquidity tiers and rating distribution."))
     s = dg["surplus"]
@@ -432,6 +471,13 @@ def write_full_report(results: dict) -> None:
                  "(5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk."))
     m.append("This is genuine *implementation* alpha: small, repeatable and orthogonal to the top-level allocation - "
              "exactly where an insurer with a constrained SAA can still add value.\n")
+    m.append(f"**Out-of-sample and net of trading costs** (walk-forward, annual rebalancing) the picture is more sober: "
+             f"the net portfolio pickup is only **{intra['portfolio_oos_uplift_bps']:+.1f} bps**. It is positive and "
+             "material in **Listed Equities and IG Credit** - where the sub-sleeve dispersion is *structural* (region/"
+             "style, quality/sector) - but negative in **High Yield, the sovereign curve and Private Credit**, where "
+             "realised sub-returns are too noisy for the tilt to pay reliably. The honest conclusion: harvest intra-class "
+             "implementation alpha **only where the dispersion is structural**, size it modestly, and rebalance slowly to "
+             "keep turnover low. Out-of-sample testing is exactly what separates a real edge from an in-sample mirage.\n")
     m.append("## 11. Conclusion\n")
     m.append("No single optimisation captures an insurer's problem. The Min-Variance and Max-RoC portfolios are far more "
              "capital-efficient than the baseline; the Max-Sharpe portfolio improves risk-adjusted return; raising risk to "
@@ -484,6 +530,10 @@ def generate_all(results: dict) -> None:
     intra = results["intra_asset"]
     save_table(intra["summary"].round(4), "intra_asset_uplift.csv")
     save_table(intra["per_class"]["AUD Sovereign"]["weights"].round(4), "intra_class_weights_aud_sovereign.csv")
+    er = results["earnings_risk"]
+    save_table(er["table"].round(5), "earnings_at_risk.csv")
+    save_table(ra["earnings_vol_contribution"].rename("earnings_vol_share").to_frame(), "earnings_vol_contribution.csv")
+    save_table(results["return_capital_budget"].round(5), "return_capital_budget_frontier.csv", index=False)
 
     # charts
     chart_efficient_frontier(results["frontier"], {
@@ -507,6 +557,8 @@ def generate_all(results: dict) -> None:
     chart_marginal_efficiency(ra["marginal_efficiency"])
     chart_intra_asset(intra)
     chart_intra_weights(intra, "AUD Sovereign")
+    chart_earnings_at_risk(er, config["portfolio"]["plan_return_target"])
+    chart_earnings_vol_contribution(ra["earnings_vol_contribution"])
 
     write_markdown(results)
     write_full_report(results)

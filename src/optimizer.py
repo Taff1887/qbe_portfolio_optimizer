@@ -165,11 +165,47 @@ def capital_efficient_frontier(market: MarketData, config: dict, n_points: int |
     return pd.DataFrame(rows)
 
 
+def smooth_capital(market: MarketData, config: dict, weights) -> float:
+    """The smooth (diversified) capital charge for a given weight vector."""
+    ind, stress, R = _capital_components(market, config)
+    return _smooth_capital(np.asarray(weights, dtype=float), ind, stress, R)
+
+
+def max_return_capital_budget(market: MarketData, config: dict, capital_budget: float) -> Portfolio:
+    """Maximise expected return subject to capital charge <= budget (+ all the
+    usual constraints). This is how an insurer really optimises: capital, not
+    volatility, is the binding scarce resource."""
+    mu, _ = _inputs(market)
+    m = mu.to_numpy()
+    ind, stress, R = _capital_components(market, config)
+    extra = [{"type": "ineq", "fun": lambda w: capital_budget - _smooth_capital(w, ind, stress, R)}]
+    w = _solve(lambda w: -(m @ w), market, config, extra_cons=extra)
+    return Portfolio(w, market, f"Capital-Budget {capital_budget:.1%}")
+
+
+def return_capital_budget_frontier(market: MarketData, config: dict, n_points: int | None = None) -> pd.DataFrame:
+    """Maximum expected return achievable at each level of capital budget."""
+    mu, _ = _inputs(market)
+    m = mu.to_numpy()
+    ind, stress, R = _capital_components(market, config)
+    n_points = n_points or config["optimiser"].get("frontier_points", 30)
+    lo = _smooth_capital(min_variance(market, config).weights.to_numpy(), ind, stress, R)
+    hi = _smooth_capital(max_return(market, config).to_numpy(), ind, stress, R)
+    rows = []
+    for b in np.linspace(lo, hi, n_points):
+        extra = [{"type": "ineq", "fun": lambda w, bb=b: bb - _smooth_capital(w, ind, stress, R)}]
+        w = _solve(lambda w: -(m @ w), market, config, extra_cons=extra)
+        rows.append({"capital_budget": b, "exp_return": float(m @ w),
+                     "capital_used": _smooth_capital(w, ind, stress, R)})
+    return pd.DataFrame(rows)
+
+
 def run_optimisation(market: MarketData, config: dict) -> dict:
     """Convenience bundle for main.py / reporting."""
     return {
         "frontier": efficient_frontier(market, config),
         "capital_frontier": capital_efficient_frontier(market, config),
+        "return_capital_budget": return_capital_budget_frontier(market, config),
         "max_sharpe": max_sharpe(market, config),
         "min_variance": min_variance(market, config),
         "max_roc": max_return_on_capital(market, config),

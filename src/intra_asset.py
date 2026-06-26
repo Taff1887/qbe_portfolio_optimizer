@@ -107,6 +107,42 @@ def analyse_class(class_name: str, spec: dict, parent: pd.Series, config: dict, 
     }
 
 
+def rolling_oos_pickup(class_name: str, spec: dict, parent: pd.Series, config: dict, seed: int,
+                       window: int = 36) -> dict:
+    """Walk-forward test: estimate the enhanced mix on a trailing window, apply it
+    to the NEXT month, and accumulate the realised pickup over the benchmark mix,
+    net of turnover cost. Tests whether the same-risk alpha survives out-of-sample.
+    """
+    max_w = config["optimiser"].get("intra_max_weight", 0.40)
+    cost_bps = config["portfolio"].get("trading_cost_bps", 5)
+    mu = np.array([s["exp_return"] for s in spec["components"]])
+    bench = np.array([s["benchmark_weight"] for s in spec["components"]], float)
+    bench = bench / bench.sum()
+    R = generate_sub_returns(class_name, spec, parent, seed).to_numpy()
+    n = len(R)
+    enh_r, bch_r, turns, w = [], [], [], None
+    for t in range(window, n - 1):
+        # Re-optimise ANNUALLY (the realistic cadence for an intra-class tilt) and
+        # hold between - monthly re-optimisation just churns turnover.
+        to = 0.0
+        if (t - window) % MONTHS_PER_YEAR == 0 or w is None:
+            cov = np.cov(R[t - window:t], rowvar=False) * MONTHS_PER_YEAR
+            bvol = np.sqrt(max(bench @ cov @ bench, 1e-12))
+            new_w = _max_return_at_vol(mu, cov, bvol, max_w)
+            to = 0.0 if w is None else float(np.abs(new_w - w).sum())
+            w = new_w
+        rnext = R[t + 1]
+        enh_r.append(float(w @ rnext) - to * cost_bps / 1e4)
+        bch_r.append(float(bench @ rnext))
+        turns.append(to)
+    enh, bch = np.array(enh_r), np.array(bch_r)
+    return {
+        "oos_pickup_net_bps": float((enh.mean() - bch.mean()) * MONTHS_PER_YEAR * 1e4),
+        "avg_turnover": float(np.mean(turns)) if turns else 0.0,
+        "n_months": len(enh),
+    }
+
+
 def run_intra_asset(market: MarketData, config: dict) -> dict:
     """Per-class within-asset-class analysis + portfolio-level uplift."""
     subs_cfg = config.get("sub_sleeves", {})
@@ -118,22 +154,25 @@ def run_intra_asset(market: MarketData, config: dict) -> dict:
     for i, (cls, spec) in enumerate(subs_cfg.items()):
         if cls not in market.returns.columns:
             continue
-        res = analyse_class(cls, spec, market.returns[cls], config, seed0 + 17 * (i + 1))
+        seed = seed0 + 17 * (i + 1)
+        res = analyse_class(cls, spec, market.returns[cls], config, seed)
+        oos = rolling_oos_pickup(cls, spec, market.returns[cls], config, seed)
         per_class[cls] = res
         cw = float(baseline.get(cls, 0.0))
         rows.append({
             "asset_class": cls,
             "class_weight": cw,
-            "bench_return": res["benchmark"]["exp_return"],
-            "enhanced_return": res["enhanced"]["exp_return"],
-            "incremental_return_bps": res["incremental_return"] * 1e4,    # same-risk pickup
+            "incremental_return_bps": res["incremental_return"] * 1e4,         # in-sample same-risk pickup
+            "oos_pickup_net_bps": oos["oos_pickup_net_bps"],                   # out-of-sample, net of cost
             "div_vol_saved_bps": res["diversification_vol_saved"] * 1e4,
-            "max_sharpe_uplift": res["incremental_sharpe"],
-            "portfolio_return_uplift_bps": cw * res["incremental_return"] * 1e4,
+            "oos_turnover": oos["avg_turnover"],
+            "portfolio_uplift_bps": cw * res["incremental_return"] * 1e4,
+            "portfolio_oos_uplift_bps": cw * oos["oos_pickup_net_bps"],
         })
     summary = pd.DataFrame(rows).set_index("asset_class")
     return {
         "per_class": per_class,
         "summary": summary,
-        "portfolio_return_uplift_bps": float(summary["portfolio_return_uplift_bps"].sum()),
+        "portfolio_return_uplift_bps": float(summary["portfolio_uplift_bps"].sum()),
+        "portfolio_oos_uplift_bps": float(summary["portfolio_oos_uplift_bps"].sum()),
     }

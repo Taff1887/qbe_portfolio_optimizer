@@ -12,6 +12,7 @@ from __future__ import annotations
 import diagnostics
 import duration_model
 import earnings_model
+import earnings_risk
 import intra_asset
 import lagic_capital
 import optimizer
@@ -33,11 +34,14 @@ def build_results(regenerate: bool = False) -> dict:
     # --- portfolios ---
     base = baseline_portfolio(market)
     risk20 = base.scale_risk_assets(config["portfolio"]["risk_asset_scaled"], name="Risk 20%")
+    base_capital = optimizer.smooth_capital(market, config, base.weights.to_numpy())
     portfolios = {
         "Baseline": base,
         "Max-Sharpe": optimizer.max_sharpe(market, config),
         "Min-Variance": optimizer.min_variance(market, config),
         "Max-RoC": optimizer.max_return_on_capital(market, config),
+        # most return achievable at the SAME capital charge as the baseline
+        "Capital-Budgeted": optimizer.max_return_capital_budget(market, config, base_capital),
         "Risk 20%": risk20,
     }
 
@@ -57,9 +61,11 @@ def build_results(regenerate: bool = False) -> dict:
         "earnings": earnings_model.run_earnings(base, config),
         "duration": duration_model.run_duration(base, config),
         "duration_example": earnings_model.duration_earnings_example(config),
+        "return_capital_budget": optimizer.return_capital_budget_frontier(market, config),
         "risk_attribution": risk_attribution.run_risk_attribution(base, config),
         "diagnostics": diagnostics.run_diagnostics(base, config, worst_total),
         "intra_asset": intra_asset.run_intra_asset(market, config),
+        "earnings_risk": earnings_risk.run_earnings_risk(portfolios, config),
     }
 
 
@@ -89,8 +95,15 @@ def print_summary(results: dict) -> None:
     print(f"Lens 6  Earnings   : annual earnings vol {earn['earnings_volatility']:.2%}  |  "
           f"P(miss {earn['plan_target']:.1%} plan) {earn['plan_miss_prob']:.0%}  |  "
           f"carry funds {earn['carry_share_of_return']:.0%} of return")
-    print(f"Extra   Intra-class: same-risk return pickup from better within-class mix "
-          f"= +{results['intra_asset']['portfolio_return_uplift_bps']:.1f} bps (SAA unchanged)")
+    cap = results["portfolios"]["Capital-Budgeted"]
+    print(f"Extra   Cap-budget : at the baseline's capital, max return rises to {cap.expected_return():.2%} "
+          f"(vs {base.expected_return():.2%})")
+    er = results["earnings_risk"]["table"].loc["Baseline"]
+    print(f"Extra   Earn@risk  : EaR(5%) {er['earnings_at_risk_5pc']:.2%}  CTE95 {er['cte_95']:.2%}  "
+          f"P(miss plan) {er['prob_miss_plan']:.0%}")
+    ia = results["intra_asset"]
+    print(f"Extra   Intra-class: same-risk pickup {ia['portfolio_return_uplift_bps']:+.1f}bps in-sample, "
+          f"{ia['portfolio_oos_uplift_bps']:+.1f}bps out-of-sample net of cost (annual rebal, SAA unchanged)")
     print("=" * 68)
     print("Outputs written to outputs/ (tables/, charts/, summary_report.md)")
 

@@ -82,6 +82,30 @@ def marginal_efficiency(portfolio: Portfolio, config: dict) -> pd.DataFrame:
     return df.sort_values("return_per_capital", ascending=False)
 
 
+def earnings_vol_contribution(portfolio: Portfolio) -> pd.Series:
+    """Each asset's share of annual *earnings* (P&L) volatility (sums to 1).
+
+    Builds each asset's monthly P&L contribution - w_i x (carry_i + price MtM_i
+    if it is a P&L-bucket asset; carry only if OCI) - and attributes the variance
+    of total P&L to assets via cov(contribution_i, total_P&L)/var(total_P&L).
+    Carry is constant so contributes no variance; the result shows which sleeves
+    (typically long-duration P&L bonds) drive earnings instability.
+    """
+    meta, w = portfolio.meta, portfolio.weights
+    rets = portfolio.market.returns[w.index]
+    carry_i = meta["yield"] / 12.0
+    mtm_i = rets - carry_i
+    is_pnl = (meta["accounting"] == "P&L").reindex(w.index)
+    # per-asset monthly P&L contribution (carry on all; price MtM only on P&L bucket)
+    contrib = (carry_i * w) + (mtm_i.loc[:, is_pnl] * w[is_pnl]).reindex(columns=w.index, fill_value=0.0)
+    total = contrib.sum(axis=1)
+    var_total = total.var(ddof=1)
+    if var_total <= 0:
+        return pd.Series(0.0, index=w.index)
+    share = contrib.apply(lambda col: col.cov(total)) / var_total
+    return share.sort_values(ascending=False)
+
+
 def run_risk_attribution(portfolio: Portfolio, config: dict) -> dict:
     return {
         "risk_by_asset": risk_contributions(portfolio).sort_values(ascending=False),
@@ -91,4 +115,5 @@ def run_risk_attribution(portfolio: Portfolio, config: dict) -> dict:
         "avg_pairwise_correlation": avg_pairwise_correlation(portfolio),
         "correlation_matrix": correlation_matrix(portfolio),
         "marginal_efficiency": marginal_efficiency(portfolio, config),
+        "earnings_vol_contribution": earnings_vol_contribution(portfolio),
     }
