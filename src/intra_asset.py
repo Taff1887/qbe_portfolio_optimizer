@@ -152,13 +152,27 @@ def run_intra_asset(market: MarketData, config: dict) -> dict:
     per_class = {}
     rows = []
     for i, (cls, spec) in enumerate(subs_cfg.items()):
-        if cls not in market.returns.columns:
+        # A class is either a single universe asset (parent = its return) or a
+        # synthetic group defined by `parent_assets` (parent = baseline-weighted
+        # blend of those assets), so a class like "Structured Credit" - which is
+        # several sleeves, not one line item - can still be decomposed.
+        if cls in market.returns.columns:
+            parent = market.returns[cls]
+            cw = float(baseline.get(cls, 0.0))
+        elif spec.get("parent_assets"):
+            pa = [a for a in spec["parent_assets"] if a in market.returns.columns]
+            if not pa:
+                continue
+            pw = baseline[pa]
+            pw = pw / pw.sum() if pw.sum() > 0 else pd.Series(1.0 / len(pa), index=pa)
+            parent = (market.returns[pa] * pw).sum(axis=1)
+            cw = float(baseline[pa].sum())
+        else:
             continue
         seed = seed0 + 17 * (i + 1)
-        res = analyse_class(cls, spec, market.returns[cls], config, seed)
-        oos = rolling_oos_pickup(cls, spec, market.returns[cls], config, seed)
+        res = analyse_class(cls, spec, parent, config, seed)
+        oos = rolling_oos_pickup(cls, spec, parent, config, seed)
         per_class[cls] = res
-        cw = float(baseline.get(cls, 0.0))
         rows.append({
             "asset_class": cls,
             "class_weight": cw,

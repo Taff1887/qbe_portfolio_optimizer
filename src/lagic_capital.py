@@ -77,11 +77,11 @@ def run_lagic(portfolio: Portfolio, config: dict) -> dict:
     worst_name = scen.idxmax()
     worst_charge = float(scen.max())
     div = diversified_charge(cat, config)
-    # Bind on the worst of the sub-measures: the worst diversified scenario, or the
-    # full diversified aggregate (an "all categories stressed" case). This keeps the
-    # headline charge >= every sub-measure rather than coincidentally close to one.
-    capital_charge = max(worst_charge, div)
-    binding_basis = "Diversified aggregate (all categories)" if div >= worst_charge else worst_name
+    # LAGIC-style asset risk charge = the WORST single scenario in the prescribed
+    # panel (the binding scenario). The full diversified aggregate ("all categories
+    # stressed at once") is reported alongside as a conservative comparator.
+    capital_charge = worst_charge
+    binding_basis = worst_name
     exp_ret = portfolio.expected_return()
     return {
         "asset_charges": asset_charges(portfolio, config),
@@ -90,7 +90,7 @@ def run_lagic(portfolio: Portfolio, config: dict) -> dict:
         "diversified_charge": div,
         "worst_scenario": worst_name,
         "binding_basis": binding_basis,
-        "capital_charge": capital_charge,            # % of portfolio
+        "capital_charge": capital_charge,            # % of portfolio (worst of panel)
         "return_on_capital": exp_ret / capital_charge if capital_charge > 0 else np.nan,
         "marginal_capital": marginal_capital(portfolio, config, worst_name),
     }

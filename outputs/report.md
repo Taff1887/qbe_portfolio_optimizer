@@ -32,15 +32,15 @@ Every portfolio, every headline metric (the full set, including the retained con
 
 | metric | exp_return | volatility | sharpe | sortino | max_drawdown | var_95 | cvar_95 | duration | capital_charge | stress_loss | liquidity | diversification_ratio | turnover |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Baseline | 0.0509 | 0.0328 | 1.7504 | 3.4860 | -0.1614 | -0.0092 | -0.0150 | 4.1668 | 0.0377 | -0.1126 | 7.5525 | 1.8251 | 0.0000 |
-| Equal-Weight | 0.0564 | 0.0373 | 1.5393 | 2.8740 | -0.1228 | -0.0113 | -0.0189 | 3.1286 | 0.0619 | -0.1171 | 6.1905 | 1.8612 | 0.3479 |
-| Max-Sharpe | 0.0508 | 0.0170 | 2.1465 | 4.0732 | -0.0449 | -0.0033 | -0.0078 | 1.8889 | 0.0245 | -0.0617 | 7.2901 | 2.1293 | 0.6721 |
-| Min-Variance | 0.0472 | 0.0157 | 1.9688 | 3.6572 | -0.0513 | -0.0033 | -0.0072 | 2.0662 | 0.0166 | -0.0630 | 7.8050 | 2.1312 | 0.6689 |
-| Risk-Parity | 0.0493 | 0.0223 | 1.9177 | 3.8529 | -0.0823 | -0.0063 | -0.0095 | 2.6346 | 0.0315 | -0.0773 | 7.4820 | 2.1122 | 0.4164 |
-| Max-Diversification | 0.0486 | 0.0188 | 1.8748 | 3.8693 | -0.0591 | -0.0048 | -0.0071 | 2.0196 | 0.0283 | -0.0623 | 7.8067 | 2.4048 | 0.5917 |
-| Max-RoC | 0.0439 | 0.0291 | 1.5693 | 3.0001 | -0.1499 | -0.0081 | -0.0133 | 3.8932 | 0.0113 | -0.0844 | 9.0806 | 1.4395 | 0.5530 |
-| Capital-Budgeted | 0.0588 | 0.0347 | 1.5919 | 2.5860 | -0.1531 | -0.0081 | -0.0212 | 2.8848 | 0.0377 | -0.1211 | 6.2957 | 1.6213 | 0.6914 |
-| Risk 20% | 0.0521 | 0.0337 | 1.7263 | 3.4509 | -0.1584 | -0.0102 | -0.0154 | 4.0426 | 0.0426 | -0.1122 | 7.3569 | 1.8378 | 0.0416 |
+| Baseline | 0.0509 | 0.0328 | 1.7504 | 3.4860 | -0.1614 | -0.0092 | -0.0150 | 4.1668 | 0.0254 | -0.1126 | 7.5525 | 1.8251 | 0.0000 |
+| Equal-Weight | 0.0564 | 0.0373 | 1.5393 | 2.8740 | -0.1228 | -0.0113 | -0.0189 | 3.1286 | 0.0457 | -0.1171 | 6.1905 | 1.8612 | 0.3479 |
+| Max-Sharpe | 0.0508 | 0.0170 | 2.1465 | 4.0732 | -0.0449 | -0.0033 | -0.0078 | 1.8889 | 0.0211 | -0.0617 | 7.2901 | 2.1293 | 0.6721 |
+| Min-Variance | 0.0472 | 0.0157 | 1.9688 | 3.6572 | -0.0513 | -0.0033 | -0.0072 | 2.0662 | 0.0129 | -0.0630 | 7.8050 | 2.1312 | 0.6689 |
+| Risk-Parity | 0.0493 | 0.0223 | 1.9177 | 3.8529 | -0.0823 | -0.0063 | -0.0095 | 2.6346 | 0.0201 | -0.0773 | 7.4820 | 2.1122 | 0.4164 |
+| Max-Diversification | 0.0486 | 0.0188 | 1.8748 | 3.8693 | -0.0591 | -0.0048 | -0.0071 | 2.0196 | 0.0154 | -0.0623 | 7.8067 | 2.4048 | 0.5917 |
+| Max-RoC | 0.0439 | 0.0291 | 1.5693 | 3.0001 | -0.1499 | -0.0081 | -0.0133 | 3.8932 | 0.0103 | -0.0844 | 9.0806 | 1.4395 | 0.5530 |
+| Capital-Budgeted | 0.0588 | 0.0347 | 1.5919 | 2.5860 | -0.1531 | -0.0081 | -0.0212 | 2.8848 | 0.0355 | -0.1211 | 6.2957 | 1.6213 | 0.6914 |
+| Risk 20% | 0.0521 | 0.0337 | 1.7263 | 3.4509 | -0.1584 | -0.0102 | -0.0154 | 4.0426 | 0.0299 | -0.1122 | 7.3569 | 1.8378 | 0.0416 |
 
 _VaR / CVaR are historical monthly 95% figures (signed; negative = loss); stress loss is the worst instantaneous scenario; turnover (and tracking error, in the CSV) is measured against the Baseline book._
 
@@ -95,7 +95,7 @@ The worst instantaneous scenario for the Baseline is **Inflation / rates up** at
 
 *Figure 6. Capital charge by category (Baseline).*
 
-The binding capital charge is **3.77%** of assets (binding basis: Diversified aggregate (all categories); worst single scenario: Broad recession). Return on capital is **1.35x**. The largest capital consumers:
+The asset risk charge is the **worst of an 8-scenario prescribed panel** (deterministic, no history needed): **2.54%** of assets, binding in the **Broad recession** scenario (the fully diversified 'all categories at once' aggregate is **3.77%**, reported as a comparator). Return on capital is **2.01x**. The largest capital consumers in the binding scenario:
 
 | metric | capital |
 |---|---|
@@ -110,7 +110,7 @@ The binding capital charge is **3.77%** of assets (binding basis: Diversified ag
 
 *Figure 7. Capital-efficient frontier (return vs capital).*
 
-Optimising return **per unit of capital** gives the Max-RoC portfolio: expected return **4.39%** at capital charge **1.13%** (RoC 3.87x). Conversely, **holding capital at the baseline's level**, the capital-budgeted optimiser lifts expected return to **5.88%** (vs baseline 5.09%) - more return for the same capital. For an insurer, capital - not volatility - is usually the binding constraint.
+Optimising return **per unit of capital** gives the Max-RoC portfolio: expected return **4.39%** at capital charge **1.03%** (RoC 4.24x). Conversely, **holding capital at the baseline's level**, the capital-budgeted optimiser lifts expected return to **5.88%** (vs baseline 5.09%) - more return for the same capital. For an insurer, capital - not volatility - is usually the binding constraint.
 
 ### B3. Lens 3/6 - Through-time earnings & carry
 
@@ -168,19 +168,43 @@ Diversification ratio **1.83** (1 = none); average pairwise correlation **0.23**
 
 Earnings (P&L) volatility is concentrated in **AUD Sovereign** and **IG Credit** (21% and 21% of P&L variance) - the long-duration P&L bonds whose mark-to-market flows through earnings. This is distinct from total-risk contribution: an asset can be small in the risk budget yet large in the *earnings* budget.
 
-### B6. Liquidity, credit quality & solvency
+### B6. Through-time return drivers (factor analysis)
 
-![Figure 16. Liquidity tiers and rating distribution.](charts/15_liquidity_and_rating.png)
+![Figure 16. Annualised return attributed to each macro/market factor (plus alpha/carry).](charts/24_factor_attribution.png)
 
-*Figure 16. Liquidity tiers and rating distribution.*
+*Figure 16. Annualised return attributed to each macro/market factor (plus alpha/carry).*
+
+![Figure 17. Rolling factor betas - exposures drift through time.](charts/25_rolling_factor_betas.png)
+
+*Figure 17. Rolling factor betas - exposures drift through time.*
+
+Regressing the book's monthly returns on the macro/market factors (rates, credit spread, structured spread, equity, property, gold) explains **88%** of the variation. This is the *why* behind the return - and the **point-in-time vs through-time** tension: a flat average exposure can hide a factor bet that is wound up and down over the cycle (the rolling betas show that drift). Return attribution by factor:
+
+| metric | beta | ann_contribution |
+|---|---|---|
+| Rates | -5.5079 | 0.0263 |
+| Credit spread | -2.1666 | -0.0027 |
+| Structured spread | -0.5083 | -0.0021 |
+| Equity | 0.1209 | 0.0086 |
+| Property | -0.0355 | -0.0018 |
+| Gold | 0.0060 | 0.0001 |
+| Alpha / carry | nan | 0.0538 |
+
+On real data, replace the generative factors with observable market series (a rates index, IG OAS, an equity index) and the same regression gives a genuine driver-of-returns decomposition.
+
+### B7. Liquidity, credit quality & solvency
+
+![Figure 18. Liquidity tiers and rating distribution.](charts/15_liquidity_and_rating.png)
+
+*Figure 18. Liquidity tiers and rating distribution.*
 
 **8%** of the book is illiquid; **5%** is sub-investment-grade; effective number of assets **11.2**. Surplus is **18%** of assets (coverage 1.22x); the worst stress erodes surplus by **-63%** to a coverage of 1.08x.
 
-### B7. Marginal efficiency & historical stress
+### B8. Marginal efficiency & historical stress
 
-![Figure 17. Return vs marginal capital per asset (bubble = weight).](charts/16_marginal_efficiency.png)
+![Figure 19. Return vs marginal capital per asset (bubble = weight).](charts/16_marginal_efficiency.png)
 
-*Figure 17. Return vs marginal capital per asset (bubble = weight).*
+*Figure 19. Return vs marginal capital per asset (bubble = weight).*
 
 Realised behaviour through the embedded historical episodes:
 
@@ -192,13 +216,13 @@ Realised behaviour through the embedded historical episodes:
 | Rate sell-off 2022 | - | -0.1614 |
 | Max drawdown | 2022-12-31 | -0.1614 |
 
-### B8. Within-asset-class diversification (implementation alpha)
+### B9. Within-asset-class diversification (implementation alpha)
 
-![Figure 18. Same-risk return pickup and diversification benefit by class.](charts/17_intra_asset_uplift.png)
+![Figure 20. Same-risk return pickup and diversification benefit by class.](charts/17_intra_asset_uplift.png)
 
-*Figure 18. Same-risk return pickup and diversification benefit by class.*
+*Figure 20. Same-risk return pickup and diversification benefit by class.*
 
-The strategic allocation is fixed, but inside each class a better mix of sub-sleeves can add return at the **same risk**. Holding volatility at each class's benchmark level, the enhanced sub-allocation adds a few basis points per class - **+1.7 bps at the portfolio level, with the SAA completely unchanged**.
+The strategic allocation is fixed, but inside each class a better mix of sub-sleeves can add return at the **same risk**. Holding volatility at each class's benchmark level, the enhanced sub-allocation adds a few basis points per class - **+8.1 bps at the portfolio level, with the SAA completely unchanged**.
 
 | metric | class_weight | incremental_return_bps | oos_pickup_net_bps | div_vol_saved_bps | oos_turnover | portfolio_uplift_bps | portfolio_oos_uplift_bps |
 |---|---|---|---|---|---|---|---|
@@ -207,14 +231,15 @@ The strategic allocation is fixed, but inside each class a better mix of sub-sle
 | High Yield | 0.0200 | 0.1380 | -22.8880 | 77.5260 | 0.0300 | 0.0030 | -0.4530 |
 | AUD Sovereign | 0.1650 | 1.3470 | -17.1430 | 30.6860 | 0.0090 | 0.2230 | -2.8340 |
 | Private Credit | 0.0300 | 1.2790 | 0.8400 | 121.9840 | 0.0130 | 0.0380 | 0.0250 |
+| Structured Credit | 0.1440 | 44.7210 | 35.0560 | 53.1750 | 0.0190 | 6.4200 | 5.0330 |
 
-![Figure 19. AUD Sovereign: the enhanced mix tilts to the belly of the curve (5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk.](charts/18_intra_class_weights.png)
+![Figure 21. AUD Sovereign: the enhanced mix tilts to the belly of the curve (5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk.](charts/18_intra_class_weights.png)
 
-*Figure 19. AUD Sovereign: the enhanced mix tilts to the belly of the curve (5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk.*
+*Figure 21. AUD Sovereign: the enhanced mix tilts to the belly of the curve (5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk.*
 
 This is genuine *implementation* alpha: small, repeatable and orthogonal to the top-level allocation - exactly where an insurer with a constrained SAA can still add value.
 
-**Out-of-sample and net of trading costs** (walk-forward, annual rebalancing) the picture is more sober: the net portfolio pickup is only **+1.0 bps**. It is positive and material in **Listed Equities and IG Credit** - where the sub-sleeve dispersion is *structural* (region/style, quality/sector) - but negative in **High Yield, the sovereign curve and Private Credit**, where realised sub-returns are too noisy for the tilt to pay reliably. The honest conclusion: harvest intra-class implementation alpha **only where the dispersion is structural**, size it modestly, and rebalance slowly to keep turnover low. Out-of-sample testing is exactly what separates a real edge from an in-sample mirage.
+**Out-of-sample and net of trading costs** (walk-forward, annual rebalancing) the net portfolio pickup is **+6.0 bps**, and it is concentrated where sub-sleeve dispersion is *structural*: **Structured Credit** (CLOs by rating, ABS/RMBS/CMBS - a strategic growth area), **Listed Equities** (region/style) and **IG Credit** (quality/sector) all add meaningful same-risk return, whereas **High Yield, the sovereign curve and Private Credit** are too noisy for the tilt to pay reliably. The honest conclusion: harvest intra-class implementation alpha **only where the dispersion is structural** (structured credit is the standout - worth a deeper, granular build), size it modestly, and rebalance slowly to keep turnover low. Out-of-sample testing is exactly what separates a real edge from an in-sample mirage.
 
 ## Conclusion
 
@@ -222,4 +247,4 @@ No single construction philosophy captures an insurer's problem. Equal weight is
 
 ## Methodology & limitations
 
-Dummy data is a factor model (rates/credit/equity/property/gold + idiosyncratic) with embedded GFC/COVID/2022 episodes. MVO uses forward `exp_return` assumptions and historical covariance. Realised-return, earnings-volatility and drawdown figures inherit the dummy data's one-off secular rate-decline tailwind and are illustrative, not forecasts. The LAGIC module is a simplified, illustrative asset-risk charge - not the legal standard. Stress impacts are first-order (duration/beta). Liabilities are stylised (backed ~1:1 by the P&L book; ratio 82% of assets). See `README.md` for how to drop in real data.
+Dummy data is a factor model (rates/credit/equity/property/gold + idiosyncratic) with embedded GFC/COVID/2022 episodes. MVO uses forward `exp_return` assumptions and historical covariance. Realised-return, earnings-volatility and drawdown figures inherit the dummy data's one-off secular rate-decline tailwind and are illustrative, not forecasts. The LAGIC module is a simplified, illustrative asset-risk charge (worst of an 8-scenario prescribed panel) - not the legal standard; the capital-aware *optimisers* use a smooth diversified-aggregate proxy for the charge because it is differentiable (the worst-of-panel max is not), so their reported charge can differ slightly from the binding scenario. Stress impacts are first-order (duration/beta). Liabilities are stylised (backed ~1:1 by the P&L book; ratio 82% of assets). Risk assets are restricted to the big-four currencies. See `README.md` for how to drop in real data.

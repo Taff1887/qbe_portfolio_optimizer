@@ -14,6 +14,7 @@ import diagnostics
 import duration_model
 import earnings_model
 import earnings_risk
+import factor_analysis
 import intra_asset
 import lagic_capital
 import optimizer
@@ -76,6 +77,7 @@ def build_results(regenerate: bool = False) -> dict:
         "diagnostics": diagnostics.run_diagnostics(base, config, worst_total),
         "intra_asset": intra_asset.run_intra_asset(market, config),
         "earnings_risk": earnings_risk.run_earnings_risk(portfolios, config),
+        "factor_analysis": factor_analysis.run_factor_analysis(base, config),
     }
 
 

@@ -355,6 +355,32 @@ def chart_philosophy_metrics(comp: pd.DataFrame, names: list[str]) -> None:
     save_chart(fig, "23_philosophy_metrics")
 
 
+def chart_factor_attribution(attr: pd.DataFrame) -> None:
+    """Annualised return attributed to each factor (plus alpha/carry)."""
+    s = attr["ann_contribution"] * 100
+    colors = ["#117733" if v >= 0 else "#C0392B" for v in s.values]
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ax.barh(s.index, s.values, color=colors)
+    ax.axvline(0, color="#444", lw=0.8)
+    for i, v in enumerate(s.values):
+        ax.text(v, i, f" {v:+.2f}", va="center", fontsize=8)
+    ax.set_xlabel("Annualised return contribution (%)")
+    ax.set_title("Return attribution by factor (through-time drivers)")
+    save_chart(fig, "24_factor_attribution")
+
+
+def chart_rolling_factor_betas(roll: pd.DataFrame) -> None:
+    """Rolling factor betas - how the book's factor exposures drift through time."""
+    fig, ax = plt.subplots(figsize=(11, 6))
+    for col in roll.columns:
+        ax.plot(roll.index, roll[col], label=col)
+    ax.axhline(0, color="#999", lw=0.8)
+    ax.set_ylabel("Rolling factor beta")
+    ax.set_title("Rolling factor exposures through time (36m window)")
+    ax.legend(fontsize=8, ncol=3)
+    save_chart(fig, "25_rolling_factor_betas")
+
+
 def chart_marginal_efficiency(marg: pd.DataFrame) -> None:
     fig, ax = plt.subplots(figsize=(9, 6))
     sizes = (marg["weight"] * 1500 + 20)
@@ -448,6 +474,7 @@ def write_full_report(results: dict) -> None:
     ra = results["risk_attribution"]
     dg = results["diagnostics"]
     intra = results["intra_asset"]
+    fa = results.get("factor_analysis")
     worst_s = stress["total_impact"].idxmin()
     philosophies = [n for n in ["Equal-Weight", "Max-Sharpe", "Min-Variance",
                                 "Risk-Parity", "Max-Diversification"] if n in pf]
@@ -527,9 +554,11 @@ def write_full_report(results: dict) -> None:
 
     m.append("### B2. Lens 5 - LAGIC-style capital\n")
     m.append(img("04_capital_by_category", "Figure 6. Capital charge by category (Baseline)."))
-    m.append(f"The binding capital charge is **{lag['capital_charge']:.2%}** of assets "
-             f"(binding basis: {lag['binding_basis']}; worst single scenario: {lag['worst_scenario']}). "
-             f"Return on capital is **{lag['return_on_capital']:.2f}x**. The largest capital consumers:\n")
+    m.append(f"The asset risk charge is the **worst of an 8-scenario prescribed panel** (deterministic, no history needed): "
+             f"**{lag['capital_charge']:.2%}** of assets, binding in the **{lag['worst_scenario']}** scenario "
+             f"(the fully diversified 'all categories at once' aggregate is **{lag['diversified_charge']:.2%}**, reported as "
+             f"a comparator). Return on capital is **{lag['return_on_capital']:.2f}x**. The largest capital consumers in "
+             "the binding scenario:\n")
     m.append(_df_to_md(lag["marginal_capital"].head(6).rename("capital").to_frame()) + "\n")
     m.append(img("14_capital_efficient_frontier", "Figure 7. Capital-efficient frontier (return vs capital)."))
     m.append(f"Optimising return **per unit of capital** gives the Max-RoC portfolio: expected return "
@@ -574,37 +603,51 @@ def write_full_report(results: dict) -> None:
              "mark-to-market flows through earnings. This is distinct from total-risk contribution: an asset can be small "
              "in the risk budget yet large in the *earnings* budget.\n")
 
-    m.append("### B6. Liquidity, credit quality & solvency\n")
-    m.append(img("15_liquidity_and_rating", "Figure 16. Liquidity tiers and rating distribution."))
+    if fa is not None:
+        m.append("### B6. Through-time return drivers (factor analysis)\n")
+        m.append(img("24_factor_attribution", "Figure 16. Annualised return attributed to each macro/market factor (plus alpha/carry)."))
+        m.append(img("25_rolling_factor_betas", "Figure 17. Rolling factor betas - exposures drift through time."))
+        m.append(f"Regressing the book's monthly returns on the macro/market factors (rates, credit spread, structured "
+                 f"spread, equity, property, gold) explains **{fa['r_squared']:.0%}** of the variation. This is the "
+                 "*why* behind the return - and the **point-in-time vs through-time** tension: a flat average exposure can "
+                 "hide a factor bet that is wound up and down over the cycle (the rolling betas show that drift). Return "
+                 "attribution by factor:\n")
+        m.append(_df_to_md(fa["attribution"].round(4)) + "\n")
+        m.append("On real data, replace the generative factors with observable market series (a rates index, IG OAS, an "
+                 "equity index) and the same regression gives a genuine driver-of-returns decomposition.\n")
+
+    m.append("### B7. Liquidity, credit quality & solvency\n")
+    m.append(img("15_liquidity_and_rating", "Figure 18. Liquidity tiers and rating distribution."))
     s = dg["surplus"]
     m.append(f"**{dg['liquidity']['pct_illiquid']:.0%}** of the book is illiquid; **{dg['rating']['sub_investment_grade']:.0%}** "
              f"is sub-investment-grade; effective number of assets **{dg['concentration']['effective_n_assets']:.1f}**. "
              f"Surplus is **{s['surplus']:.0%}** of assets (coverage {s['coverage_ratio']:.2f}x); the worst stress erodes "
              f"surplus by **{s['surplus_erosion_pct']:.0%}** to a coverage of {s['coverage_ratio_stressed']:.2f}x.\n")
 
-    m.append("### B7. Marginal efficiency & historical stress\n")
-    m.append(img("16_marginal_efficiency", "Figure 17. Return vs marginal capital per asset (bubble = weight)."))
+    m.append("### B8. Marginal efficiency & historical stress\n")
+    m.append(img("16_marginal_efficiency", "Figure 19. Return vs marginal capital per asset (bubble = weight)."))
     m.append("Realised behaviour through the embedded historical episodes:\n")
     m.append(_df_to_md(dg["historical_stress"].round(4)) + "\n")
 
-    m.append("### B8. Within-asset-class diversification (implementation alpha)\n")
-    m.append(img("17_intra_asset_uplift", "Figure 18. Same-risk return pickup and diversification benefit by class."))
+    m.append("### B9. Within-asset-class diversification (implementation alpha)\n")
+    m.append(img("17_intra_asset_uplift", "Figure 20. Same-risk return pickup and diversification benefit by class."))
     m.append("The strategic allocation is fixed, but inside each class a better mix of sub-sleeves can add return at the "
              "**same risk**. Holding volatility at each class's benchmark level, the enhanced sub-allocation adds a few "
              f"basis points per class - **+{intra['portfolio_return_uplift_bps']:.1f} bps at the portfolio level, with the "
              "SAA completely unchanged**.\n")
     m.append(_df_to_md(intra["summary"].round(3)) + "\n")
-    m.append(img("18_intra_class_weights", "Figure 19. AUD Sovereign: the enhanced mix tilts to the belly of the curve "
+    m.append(img("18_intra_class_weights", "Figure 21. AUD Sovereign: the enhanced mix tilts to the belly of the curve "
                  "(5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk."))
     m.append("This is genuine *implementation* alpha: small, repeatable and orthogonal to the top-level allocation - "
              "exactly where an insurer with a constrained SAA can still add value.\n")
-    m.append(f"**Out-of-sample and net of trading costs** (walk-forward, annual rebalancing) the picture is more sober: "
-             f"the net portfolio pickup is only **{intra['portfolio_oos_uplift_bps']:+.1f} bps**. It is positive and "
-             "material in **Listed Equities and IG Credit** - where the sub-sleeve dispersion is *structural* (region/"
-             "style, quality/sector) - but negative in **High Yield, the sovereign curve and Private Credit**, where "
-             "realised sub-returns are too noisy for the tilt to pay reliably. The honest conclusion: harvest intra-class "
-             "implementation alpha **only where the dispersion is structural**, size it modestly, and rebalance slowly to "
-             "keep turnover low. Out-of-sample testing is exactly what separates a real edge from an in-sample mirage.\n")
+    m.append(f"**Out-of-sample and net of trading costs** (walk-forward, annual rebalancing) the net portfolio pickup is "
+             f"**{intra['portfolio_oos_uplift_bps']:+.1f} bps**, and it is concentrated where sub-sleeve dispersion is "
+             "*structural*: **Structured Credit** (CLOs by rating, ABS/RMBS/CMBS - a strategic growth area), **Listed "
+             "Equities** (region/style) and **IG Credit** (quality/sector) all add meaningful same-risk return, whereas "
+             "**High Yield, the sovereign curve and Private Credit** are too noisy for the tilt to pay reliably. The honest "
+             "conclusion: harvest intra-class implementation alpha **only where the dispersion is structural** (structured "
+             "credit is the standout - worth a deeper, granular build), size it modestly, and rebalance slowly to keep "
+             "turnover low. Out-of-sample testing is exactly what separates a real edge from an in-sample mirage.\n")
 
     # ----------------------------------------------------------- close
     m.append("## Conclusion\n")
@@ -618,10 +661,13 @@ def write_full_report(results: dict) -> None:
     m.append("Dummy data is a factor model (rates/credit/equity/property/gold + idiosyncratic) with embedded GFC/COVID/2022 "
              "episodes. MVO uses forward `exp_return` assumptions and historical covariance. Realised-return, earnings-"
              "volatility and drawdown figures inherit the dummy data's one-off secular rate-decline tailwind and are "
-             "illustrative, not forecasts. The LAGIC module is a "
-             "simplified, illustrative asset-risk charge - not the legal standard. Stress impacts are first-order "
+             "illustrative, not forecasts. The LAGIC module is a simplified, illustrative asset-risk charge (worst of an "
+             "8-scenario prescribed panel) - not the legal standard; the capital-aware *optimisers* use a smooth "
+             "diversified-aggregate proxy for the charge because it is differentiable (the worst-of-panel max is not), so "
+             "their reported charge can differ slightly from the binding scenario. Stress impacts are first-order "
              "(duration/beta). Liabilities are stylised (backed ~1:1 by the P&L book; ratio "
-             f"{config['portfolio'].get('liability_ratio',0.82):.0%} of assets). See `README.md` for how to drop in real data.\n")
+             f"{config['portfolio'].get('liability_ratio',0.82):.0%} of assets). Risk assets are restricted to the big-four "
+             "currencies. See `README.md` for how to drop in real data.\n")
 
     (ROOT / "outputs" / "report.md").write_text("\n".join(m), encoding="utf-8")
 
@@ -666,6 +712,10 @@ def generate_all(results: dict) -> None:
     save_table(results["return_capital_budget"].round(5), "return_capital_budget_frontier.csv", index=False)
     if "stress_grid" in results:
         save_table(results["stress_grid"].round(5), "stress_grid.csv")
+    if "factor_analysis" in results:
+        fa = results["factor_analysis"]
+        save_table(fa["attribution"].round(5), "factor_attribution.csv")
+        save_table(fa["rolling_betas"].round(4), "factor_rolling_betas.csv")
 
     # construction philosophies shown side by side (Lens 1)
     philosophies = [n for n in ["Equal-Weight", "Max-Sharpe", "Min-Variance",
@@ -702,6 +752,9 @@ def generate_all(results: dict) -> None:
     if "stress_grid" in results:
         chart_stress_grid(results["stress_grid"])
     chart_philosophy_metrics(results["comparison"], ["Baseline"] + philosophies)
+    if "factor_analysis" in results:
+        chart_factor_attribution(results["factor_analysis"]["attribution"])
+        chart_rolling_factor_betas(results["factor_analysis"]["rolling_betas"])
 
     write_markdown(results)
     write_full_report(results)

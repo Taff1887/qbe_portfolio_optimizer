@@ -43,6 +43,16 @@ def _build(market: MarketData, config: dict, risk_cap: float | None = None):
         if b.get("max") is not None:
             cons.append({"type": "ineq", "fun": lambda w, i=ind, hi=b["max"]: hi - i @ w})
 
+    # Risk assets are only permitted in the eligible ("big four") currencies; force
+    # risk-asset weight to zero in every other currency (e.g. NZD, CAD).
+    risk_ccys = config["optimiser"].get("risk_asset_currencies")
+    if risk_ccys is not None:
+        for ccy in config["currencies"]:
+            if ccy not in risk_ccys:
+                rind = ((meta["currency"] == ccy) & (meta["group"] == "risk")).astype(float).to_numpy()
+                if rind.sum() > 0:
+                    cons.append({"type": "eq", "fun": lambda w, i=rind: i @ w})
+
     maxw = config["optimiser"]["default_max_weight"]
     bounds = [(0.0, maxw)] * n
     x0 = market.baseline_weights.to_numpy()

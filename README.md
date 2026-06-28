@@ -50,7 +50,8 @@ Risk parity and maximum diversification are solved under the **same** insurer co
 | 2 | **Instantaneous stress testing** | `stress_testing.py` | Deterministic shocks (rates ±100bp, credit +100/+150/+200bp, equity −20/−30%, property −15%, high-yield widening, structured, recession, inflation) via duration / spread duration / beta, split into P&L and OCI impact; a stress grid runs every scenario against every portfolio. |
 | 3 / 6 | **Through-time earnings & carry** | `earnings_model.py` | Decomposes returns into carry vs mark-to-market and P&L vs OCI; annual earnings volatility and probability of missing the plan; a worked duration-vs-earnings-stability example. |
 | 4 | **Duration / ALM** | `duration_model.py` | Asset vs liability duration and the gap by currency; separates the matched (P&L) book from the surplus (OCI) book; rate-shock impact split into earnings vs economic. |
-| 5 | **LAGIC-style capital** | `lagic_capital.py` | Simplified APRA/LAGIC asset risk charge: prescribed category stresses, a diversified aggregate, a worst-scenario panel, return on capital and marginal capital by asset. |
+| 5 | **LAGIC-style capital** | `lagic_capital.py` | Simplified APRA/LAGIC asset risk charge: prescribed category stresses run through a **panel of 8 deterministic scenarios**; the **worst scenario is the binding asset risk charge** (no history needed). Plus a diversified-aggregate comparator, return on capital and marginal capital by asset. |
+| 7 | **Factor analysis (through-time drivers)** | `factor_analysis.py` | Regresses returns on the macro/market factors (rates, credit, structured, equity, property, gold); reports factor betas, return attribution by driver and **rolling factor exposures** — the point-in-time vs through-time view. |
 | — | **Comparison & metrics** | `reporting.py`, `metrics.py` | Every portfolio compared on identical metrics — return, volatility, Sharpe, **Sortino**, drawdown, **VaR**, **CVaR**, duration, capital charge, **stress loss**, liquidity, **diversification ratio**, **turnover** and **tracking error**. |
 
 **Additional analyses** (because a multi-lens framework should keep adding lenses): a **capital-efficient frontier**, a **max-return-on-capital** portfolio, and a **capital-budgeted optimiser** (max return at a fixed capital charge - capital, not volatility, is an insurer's binding constraint); **risk budgeting** (each asset's and currency's share of portfolio risk, diversification ratio, correlation matrix, marginal efficiency) plus **earnings-volatility attribution** (which sleeves drive P&L instability - distinct from total risk); **earnings-at-risk** (block-bootstrap of the plan-year P&L tail: EaR, CTE95, P(miss plan)); and **diagnostics** (liquidity tiers, concentration / effective number of assets, rating distribution, surplus & coverage with surplus-at-risk, and realised behaviour through the GFC/COVID/2022 episodes). The within-class lens is also stress-tested **out-of-sample, net of costs** - honestly showing the implementation alpha is robust only where sub-sleeve dispersion is structural. Finally, a **within-asset-class** lens (`intra_asset.py`): the top-level SAA is fixed, so it decomposes each class into sub-sleeves (e.g. the AUD sovereign curve, IG by rating/sector, equity by region/style) and finds the mix that earns **more return at the same risk** - small, repeatable *implementation* alpha (a few bps per class) orthogonal to the policy allocation. A single comprehensive **`outputs/report.md`** pulls every lens together with embedded charts.
@@ -59,7 +60,7 @@ Risk parity and maximum diversification are solved under the **same** insurer co
 
 - **~85% core fixed income** (sovereigns, IG/corporate credit, senior structured, cash) used mainly for **ALM / liability matching** — this is the **P&L (FVTPL)** book.
 - **~15% risk assets** (high yield, mezz structured, private credit, infrastructure, listed equity, unlisted property, **gold**) — mostly the **OCI (FVOCI) / surplus** book. The user can scale this to **20%** for scenario analysis (existing risk assets rescale pro rata). Gold is modelled as a no-carry, safe-haven diversifier (a positive bid in the GFC/COVID episodes).
-- **Currency is largely given**: buckets are **AUD, USD, GBP, EUR, NZD, CAD**; risk is concentrated in the larger currencies. Currency min/max bounds are honoured by the optimiser.
+- **Currency is largely given**: buckets are **AUD, USD, GBP, EUR, NZD, CAD**; currency min/max bounds are honoured by the optimiser. **Risk assets are only held in the "big four" (AUD, USD, GBP, EUR)** — NZD and CAD carry core fixed income only (enforced as an optimiser constraint via `optimiser.risk_asset_currencies`).
 - **P&L vs OCI** distinction is explicit everywhere: mark-to-market on the P&L book hits earnings now; on the OCI book it sits in reserves.
 
 ## Repository structure
@@ -91,8 +92,9 @@ qbe_portfolio_optimizer/
     duration_model.py    # lens 4: ALM / duration gap
     lagic_capital.py     # lens 5: LAGIC-style capital
     risk_attribution.py  # extra: risk budgeting, diversification, marginal efficiency
+    factor_analysis.py   # lens 7: through-time return drivers (factor betas, attribution, rolling)
     diagnostics.py       # extra: liquidity, concentration, rating, surplus, historical stress
-    intra_asset.py       # extra: within-asset-class diversification & same-risk return pickup
+    intra_asset.py       # extra: within-asset-class diversification (incl. structured-credit deep-dive)
     earnings_risk.py     # extra: earnings-at-risk (block-bootstrap plan-year P&L tail)
     reporting.py         # tables, charts, markdown (incl. full report.md)
 ```
@@ -113,6 +115,9 @@ This will: generate dummy data (if `data/processed/returns.csv` is missing), bui
 - `efficient_frontier.csv` — the constrained efficient frontier (return vs volatility).
 - `stress_scenarios.csv` — total / P&L / OCI impact for each shock (baseline).
 - `stress_grid.csv` — every stress scenario against every portfolio (total impact).
+- `lagic_scenario_charges.csv` — the 8-scenario LAGIC panel; the worst is the binding asset risk charge.
+- `factor_attribution.csv`, `factor_rolling_betas.csv` — return drivers by factor and their drift through time.
+- `intra_asset_uplift.csv` — within-class same-risk pickup per class (incl. the structured-credit deep-dive).
 - `lagic_asset_charges.csv`, `lagic_scenario_charges.csv` — capital charge by asset and by stress scenario.
 - `earnings_annual.csv` — annual total / carry / MtM / P&L / OCI.
 - `duration_by_currency.csv`, `duration_rate_shock.csv` — duration gaps and the earnings-vs-economic split of a rate shock.
@@ -148,7 +153,10 @@ No code changes are required — every module reads from config and `returns.csv
 - Liability cash-flow model (key-rate durations, not just effective duration) and surplus-at-risk.
 - Stochastic earnings simulation (Monte Carlo paths) and Conditional Tail Expectation on annual earnings.
 - **Black-Litterman** and **robust optimisation** — currently documented placeholders in `construction.py`; the design notes are in the docstrings, ready to be wired into the same comparison.
-- Further philosophies behind the same interface: factor models, ML expected-return forecasts, regime switching, Bayesian / multi-objective optimisation.
+- Further philosophies behind the same interface: ML expected-return forecasts, regime switching, Bayesian / multi-objective optimisation.
+- **Granular structured-credit build** — the within-class deep-dive flags structured credit as the standout same-risk opportunity; a fuller model (CLO tranches by rating and vintage, US vs EU, ABS/RMBS/CMBS sub-types) is the natural next step.
+- **Dynamic / through-time duration management** — a duration "glide path" that is built up early in the plan year to protect the earnings target and wound down toward year-end (the CFO example in the brief).
+- Real data adapters (Bloomberg / ICE) feeding both returns and observable factor series.
 - New-money / turnover and transaction-cost-aware rebalancing.
 
 ---

@@ -38,6 +38,11 @@ optimiser:
   default_max_weight: 0.25
   frontier_points: 30
   intra_max_weight: 0.40      # cap on any single sub-sleeve within an asset class
+  factor_window: 36           # rolling window (months) for factor-beta analysis
+  # Risk assets are only held in the "big four" currencies; smaller currencies
+  # (NZD, CAD) carry core fixed income only. The optimiser forces risk-asset
+  # weight to zero in any currency not listed here.
+  risk_asset_currencies: ["AUD", "USD", "GBP", "EUR"]
 
 # -----------------------------------------------------------------------------
 # Sub-sleeve universe for the WITHIN-asset-class lens (intra_asset.py). The top-
@@ -84,6 +89,20 @@ sub_sleeves:
       - { name: "Mezzanine",         exp_return: 0.095, ann_vol: 0.092, benchmark_weight: 0.25 }
       - { name: "Special Situations", exp_return: 0.100, ann_vol: 0.120, benchmark_weight: 0.20 }
       - { name: "Asset-Based",       exp_return: 0.080, ann_vol: 0.050, benchmark_weight: 0.15 }
+  # Structured credit is a strategic growth area (US & European securitised). It is
+  # several universe sleeves, not one line item, so it is decomposed via
+  # `parent_assets` - the question being the best same-risk MIX across the
+  # securitised sub-sectors (CLOs by rating, ABS, RMBS, CMBS).
+  "Structured Credit":
+    intra_correlation: 0.70
+    parent_assets: ["CLO AAA", "ABS", "RMBS", "CMBS", "CLO BBB"]
+    components:
+      - { name: "CLO AAA (US)",      exp_return: 0.059, ann_vol: 0.030, benchmark_weight: 0.28 }
+      - { name: "CLO AA (EU)",       exp_return: 0.066, ann_vol: 0.042, benchmark_weight: 0.12 }
+      - { name: "CLO BBB",           exp_return: 0.090, ann_vol: 0.090, benchmark_weight: 0.10 }
+      - { name: "ABS (consumer)",    exp_return: 0.052, ann_vol: 0.035, benchmark_weight: 0.18 }
+      - { name: "RMBS (prime)",      exp_return: 0.048, ann_vol: 0.034, benchmark_weight: 0.20 }
+      - { name: "CMBS",              exp_return: 0.062, ann_vol: 0.058, benchmark_weight: 0.12 }
 
 # -----------------------------------------------------------------------------
 # Instantaneous stress scenarios (lens 2). Shocks are applied via each asset's
@@ -132,9 +151,12 @@ lagic:
     listed_equity: 0.350
     property: 0.250
     gold: 0.160               # commodity / safe-haven sleeve (no income, high price vol)
-  # Correlation between category stresses for the diversified aggregate charge.
+  # Correlation between category stresses for the diversified aggregate charge
+  # (reported as a comparator; the binding charge is the worst single scenario).
   cross_correlation: 0.40
-  # Scenario panel: each scenario scales the prescribed stress per category.
+  # Scenario panel (LAGIC-style): a panel of 8 prescribed, deterministic scenarios.
+  # Each scenario scales the prescribed stress per category. The asset risk charge
+  # is the WORST of the 8 (the binding scenario) - no history needed to compute it.
   scenarios:
     - name: "Equity & property crash"
       multipliers: { listed_equity: 1.0, infra_equity: 1.0, property: 1.0, high_yield: 0.5, private_credit: 0.5, structured_mezz: 0.4 }
@@ -144,6 +166,14 @@ lagic:
       multipliers: { listed_equity: 0.9, infra_equity: 0.9, property: 0.8, high_yield: 0.9, private_credit: 0.8, structured_mezz: 0.8, corporate_credit: 0.7, ig_credit: 0.5, structured_senior: 0.5, infra_debt: 0.6, gold: 0.2 }
     - name: "Rates / inflation shock"
       multipliers: { sovereign: 1.0, ig_credit: 0.6, corporate_credit: 0.6, structured_senior: 0.5, structured_mezz: 0.5, infra_debt: 0.8, high_yield: 0.3, gold: 0.6 }
+    - name: "IG spread widening"
+      multipliers: { ig_credit: 1.0, corporate_credit: 1.0, structured_senior: 0.7, structured_mezz: 0.6, infra_debt: 0.6, high_yield: 0.5 }
+    - name: "Structured credit shock"
+      multipliers: { structured_senior: 1.0, structured_mezz: 1.0, high_yield: 0.6, private_credit: 0.4, ig_credit: 0.3, corporate_credit: 0.3 }
+    - name: "Unlisted revaluation (yields up)"
+      multipliers: { infra_equity: 1.0, property: 1.0, private_credit: 1.0, infra_debt: 0.8, corporate_credit: 0.3 }
+    - name: "Severe equity crash"
+      multipliers: { listed_equity: 1.0, infra_equity: 1.0, property: 0.6, high_yield: 0.7, structured_mezz: 0.5, private_credit: 0.6 }
 
 # =============================================================================
 # Asset universe. Each row carries everything every lens needs.
