@@ -20,21 +20,29 @@ import pandas as pd
 from portfolio import Portfolio
 
 _STRUCTURED = ("structured_senior", "structured_mezz")
+# Sub-investment-grade credit sleeves that feel a high-yield-specific widening.
+_HY_SLEEVES = ("high_yield", "structured_mezz", "private_credit")
 
 
 def asset_shock_impact(meta: pd.DataFrame, scenario: dict) -> pd.Series:
-    """Per-asset mark-to-market return under one scenario."""
-    d_rate = scenario["rate_bps"] / 10_000.0
-    d_spread = scenario["spread_bps"] / 10_000.0
-    d_struct = scenario["structured_bps"] / 10_000.0
+    """Per-asset mark-to-market return under one scenario.
+
+    Every scenario key is read with a default of 0, so new scenarios can be added
+    in config.yaml (e.g. a high-yield-only `hy_bps` shock) without code changes.
+    """
+    d_rate = scenario.get("rate_bps", 0) / 10_000.0
+    d_spread = scenario.get("spread_bps", 0) / 10_000.0
+    d_struct = scenario.get("structured_bps", 0) / 10_000.0
+    d_hy = scenario.get("hy_bps", 0) / 10_000.0
     is_struct = meta["capital_category"].isin(_STRUCTURED).astype(float)
-    spread_total = d_spread + is_struct * d_struct
+    is_hy = meta["capital_category"].isin(_HY_SLEEVES).astype(float)
+    spread_total = d_spread + is_struct * d_struct + is_hy * d_hy
 
     return (
         -meta["duration"] * d_rate
         - meta["spread_duration"] * spread_total
-        + meta["equity_beta"] * scenario["equity_pct"]
-        + meta["property_beta"] * scenario["property_pct"]
+        + meta["equity_beta"] * scenario.get("equity_pct", 0.0)
+        + meta["property_beta"] * scenario.get("property_pct", 0.0)
     )
 
 
@@ -65,3 +73,20 @@ def worst_scenario(stress_table: pd.DataFrame) -> tuple[str, float]:
     """Name and total impact of the worst (most negative) scenario."""
     s = stress_table["total_impact"]
     return s.idxmin(), float(s.min())
+
+
+def stress_matrix(portfolios: dict[str, Portfolio], config: dict) -> pd.DataFrame:
+    """Total instantaneous impact of every scenario on every portfolio.
+
+    Rows = scenarios, columns = portfolios. This is the "every optimiser under
+    every stress" grid the comparison needs.
+    """
+    return pd.DataFrame({
+        name: run_stress_tests(pf, config)["total_impact"]
+        for name, pf in portfolios.items()
+    })
+
+
+def worst_stress_by_portfolio(portfolios: dict[str, Portfolio], config: dict) -> pd.Series:
+    """Worst-case (most negative) total stress impact for each portfolio."""
+    return stress_matrix(portfolios, config).min(axis=0).rename("worst_stress_loss")

@@ -3,7 +3,7 @@ assets,1.0
 liabilities,0.82
 surplus,0.18
 coverage_ratio,1.21951
-worst_stress_total,-0.11375
-surplus_at_risk,-0.11375
-surplus_erosion_pct,-0.63194
-coverage_ratio_stressed,1.08079
+worst_stress_total,-0.11257
+surplus_at_risk,-0.11257
+surplus_erosion_pct,-0.62541
+coverage_ratio_stressed,1.08223

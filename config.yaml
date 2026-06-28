@@ -91,17 +91,24 @@ sub_sleeves:
 #   rate_bps      : parallel govt-rate shock (basis points)
 #   spread_bps    : credit-spread shock (basis points)
 #   structured_bps: extra spread shock applied only to structured credit
+#   hy_bps        : extra spread shock applied only to the sub-IG credit sleeves
+#                   (high yield, mezzanine structured, private credit) - optional, default 0
 #   equity_pct    : equity market move (e.g. -0.30 = -30%)
 #   property_pct  : direct property/unlisted move
+# Any omitted key defaults to 0, so scenarios can be added without touching code.
 # -----------------------------------------------------------------------------
 stress_scenarios:
   - { name: "Rates +100bp",        rate_bps: 100,  spread_bps: 0,   structured_bps: 0,   equity_pct: 0.00, property_pct: 0.00 }
   - { name: "Rates -100bp",        rate_bps: -100, spread_bps: 0,   structured_bps: 0,   equity_pct: 0.00, property_pct: 0.00 }
+  - { name: "Credit +100bp",       rate_bps: 0,    spread_bps: 100, structured_bps: 0,   equity_pct: 0.00, property_pct: 0.00 }
   - { name: "Credit +150bp",       rate_bps: 0,    spread_bps: 150, structured_bps: 0,   equity_pct: 0.00, property_pct: 0.00 }
+  - { name: "Credit +200bp",       rate_bps: 0,    spread_bps: 200, structured_bps: 0,   equity_pct: 0.00, property_pct: 0.00 }
+  - { name: "Equity -20%",         rate_bps: 0,    spread_bps: 0,   structured_bps: 0,   equity_pct: -0.20, property_pct: 0.00 }
   - { name: "Equity -30%",         rate_bps: 0,    spread_bps: 0,   structured_bps: 0,   equity_pct: -0.30, property_pct: 0.00 }
   - { name: "Property -15%",       rate_bps: 0,    spread_bps: 0,   structured_bps: 0,   equity_pct: 0.00, property_pct: -0.15 }
+  - { name: "High Yield widening", rate_bps: 0,    spread_bps: 0,   structured_bps: 0,   hy_bps: 300, equity_pct: 0.00, property_pct: 0.00 }
   - { name: "Structured +200bp",   rate_bps: 0,    spread_bps: 50,  structured_bps: 200, equity_pct: 0.00, property_pct: 0.00 }
-  - { name: "Combined recession",  rate_bps: -75,  spread_bps: 200, structured_bps: 150, equity_pct: -0.35, property_pct: -0.20 }
+  - { name: "Combined recession",  rate_bps: -75,  spread_bps: 200, structured_bps: 150, hy_bps: 150, equity_pct: -0.35, property_pct: -0.20 }
   - { name: "Inflation / rates up", rate_bps: 200, spread_bps: 75,  structured_bps: 50,  equity_pct: -0.10, property_pct: -0.05 }
 
 # -----------------------------------------------------------------------------
@@ -124,6 +131,7 @@ lagic:
     infra_equity: 0.300
     listed_equity: 0.350
     property: 0.250
+    gold: 0.160               # commodity / safe-haven sleeve (no income, high price vol)
   # Correlation between category stresses for the diversified aggregate charge.
   cross_correlation: 0.40
   # Scenario panel: each scenario scales the prescribed stress per category.
@@ -133,9 +141,9 @@ lagic:
     - name: "Credit crisis"
       multipliers: { ig_credit: 1.0, corporate_credit: 1.0, high_yield: 1.0, structured_senior: 1.0, structured_mezz: 1.0, private_credit: 1.0, infra_debt: 0.7 }
     - name: "Broad recession"
-      multipliers: { listed_equity: 0.9, infra_equity: 0.9, property: 0.8, high_yield: 0.9, private_credit: 0.8, structured_mezz: 0.8, corporate_credit: 0.7, ig_credit: 0.5, structured_senior: 0.5, infra_debt: 0.6 }
+      multipliers: { listed_equity: 0.9, infra_equity: 0.9, property: 0.8, high_yield: 0.9, private_credit: 0.8, structured_mezz: 0.8, corporate_credit: 0.7, ig_credit: 0.5, structured_senior: 0.5, infra_debt: 0.6, gold: 0.2 }
     - name: "Rates / inflation shock"
-      multipliers: { sovereign: 1.0, ig_credit: 0.6, corporate_credit: 0.6, structured_senior: 0.5, structured_mezz: 0.5, infra_debt: 0.8, high_yield: 0.3 }
+      multipliers: { sovereign: 1.0, ig_credit: 0.6, corporate_credit: 0.6, structured_senior: 0.5, structured_mezz: 0.5, infra_debt: 0.8, high_yield: 0.3, gold: 0.6 }
 
 # =============================================================================
 # Asset universe. Each row carries everything every lens needs.
@@ -172,3 +180,4 @@ assets:
   - { name: "Infra Equity",       group: risk,    currency: AUD, rating: NR,  accounting: "OCI", capital_category: infra_equity,      liquidity: 1,  yield: 0.045, duration: 0.0, spread_duration: 0.0, equity_beta: 0.60, property_beta: 0.30, exp_return: 0.090, ann_vol: 0.130, baseline_weight: 0.02 }
   - { name: "Listed Equities",    group: risk,    currency: USD, rating: NR,  accounting: "OCI", capital_category: listed_equity,     liquidity: 8,  yield: 0.025, duration: 0.0, spread_duration: 0.0, equity_beta: 1.00, property_beta: 0.0, exp_return: 0.080, ann_vol: 0.150, baseline_weight: 0.03 }
   - { name: "Unlisted Property",  group: risk,    currency: AUD, rating: NR,  accounting: "OCI", capital_category: property,          liquidity: 1,  yield: 0.050, duration: 0.0, spread_duration: 0.0, equity_beta: 0.40, property_beta: 1.00, exp_return: 0.070, ann_vol: 0.090, baseline_weight: 0.015 }
+  - { name: "Gold",               group: risk,    currency: USD, rating: NR,  accounting: "OCI", capital_category: gold,              liquidity: 7,  yield: 0.000, duration: 0.0, spread_duration: 0.0, equity_beta: -0.05, property_beta: 0.0, exp_return: 0.035, ann_vol: 0.150, baseline_weight: 0.010 }

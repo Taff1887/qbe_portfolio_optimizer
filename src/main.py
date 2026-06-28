@@ -9,6 +9,7 @@ charts and a markdown summary to outputs/.
 
 from __future__ import annotations
 
+import construction
 import diagnostics
 import duration_model
 import earnings_model
@@ -37,8 +38,13 @@ def build_results(regenerate: bool = False) -> dict:
     base_capital = optimizer.smooth_capital(market, config, base.weights.to_numpy())
     portfolios = {
         "Baseline": base,
+        # construction philosophies (Lens 1) - scored on the same metrics
+        "Equal-Weight": construction.equal_weight(market, config),
         "Max-Sharpe": optimizer.max_sharpe(market, config),
         "Min-Variance": optimizer.min_variance(market, config),
+        "Risk-Parity": construction.risk_parity(market, config),
+        "Max-Diversification": construction.max_diversification(market, config),
+        # capital-aware optimisers
         "Max-RoC": optimizer.max_return_on_capital(market, config),
         # most return achievable at the SAME capital charge as the baseline
         "Capital-Budgeted": optimizer.max_return_capital_budget(market, config, base_capital),
@@ -47,16 +53,20 @@ def build_results(regenerate: bool = False) -> dict:
 
     stress = stress_testing.run_stress_tests(base, config)
     worst_total = float(stress["total_impact"].min())
+    stress_grid = stress_testing.stress_matrix(portfolios, config)
+    worst_stress = stress_testing.worst_stress_by_portfolio(portfolios, config)
 
     # --- the six core lenses + extra analyses ---
     return {
         "config": config,
         "market": market,
         "portfolios": portfolios,
-        "comparison": reporting.comparison_table(portfolios, config),
+        "comparison": reporting.comparison_table(portfolios, config, benchmark=base, stress_losses=worst_stress),
         "frontier": optimizer.efficient_frontier(market, config),
         "capital_frontier": optimizer.capital_efficient_frontier(market, config),
         "stress": stress,
+        "stress_grid": stress_grid,
+        "worst_stress": worst_stress,
         "lagic": {name: lagic_capital.run_lagic(pf, config) for name, pf in portfolios.items()},
         "earnings": earnings_model.run_earnings(base, config),
         "duration": duration_model.run_duration(base, config),
@@ -77,12 +87,18 @@ def print_summary(results: dict) -> None:
     dur = results["duration"]
     worst = stress["total_impact"].idxmin()
 
+    comp = results["comparison"]
     print("\n" + "=" * 68)
-    print("QBE-STYLE MULTI-LENS PORTFOLIO ANALYSIS")
+    print("QBE-STYLE PORTFOLIO OPTIMISATION RESEARCH LAB")
     print("=" * 68)
     print(f"Baseline: {base.core_fi_share():.0%} core FI / {base.risk_asset_share():.0%} risk  |  "
           f"exp return {base.expected_return():.2%}  vol {base.volatility():.2%}  "
           f"carry {base.carry():.2%}  duration {base.duration():.1f}y")
+    print("Construction philosophies (exp return / vol / Sharpe):")
+    for name in ["Equal-Weight", "Max-Sharpe", "Min-Variance", "Risk-Parity", "Max-Diversification"]:
+        if name in comp.index:
+            r = comp.loc[name]
+            print(f"  {name:<20} {r['exp_return']:.2%} / {r['volatility']:.2%} / {r['sharpe']:.2f}")
     print(f"Lens 1  MVO        : Max-Sharpe exp return {results['portfolios']['Max-Sharpe'].expected_return():.2%} "
           f"at vol {results['portfolios']['Max-Sharpe'].volatility():.2%}")
     print(f"Lens 2  Stress     : worst = {worst}  total {stress.loc[worst,'total_impact']:.2%} "

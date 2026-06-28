@@ -13,6 +13,12 @@ import numpy as np
 import pandas as pd
 
 from data_loader import MarketData
+from metrics import (
+    conditional_value_at_risk,
+    sortino_ratio,
+    tracking_error,
+    value_at_risk,
+)
 from utils import (
     MONTHS_PER_YEAR,
     annualise_return,
@@ -86,6 +92,31 @@ class Portfolio:
         return float(self.weights[self.meta["group"] == "risk"].sum())
 
     # --------------------------------------------------- realised metrics
+    def sortino(self) -> float:
+        rf = self.market.config["portfolio"].get("risk_free", 0.0)
+        return sortino_ratio(self.return_series, rf_annual=rf)
+
+    def value_at_risk(self, level: float = 0.95) -> float:
+        """Historical monthly VaR (signed return; negative = loss)."""
+        return value_at_risk(self.return_series, level)
+
+    def conditional_value_at_risk(self, level: float = 0.95) -> float:
+        """Historical monthly CVaR / expected shortfall (signed return)."""
+        return conditional_value_at_risk(self.return_series, level)
+
+    def tracking_error(self, benchmark: "Portfolio | pd.Series") -> float:
+        """Annualised tracking error against a benchmark portfolio or return series."""
+        bench = benchmark.return_series if isinstance(benchmark, Portfolio) else benchmark
+        return tracking_error(self.return_series, bench)
+
+    def turnover_from(self, benchmark: "Portfolio | pd.Series") -> float:
+        """One-way turnover (sum of absolute weight changes / 2) to move FROM a
+        benchmark portfolio's weights to this portfolio's - i.e. the trade needed
+        to implement this construction starting from the benchmark book."""
+        bench_w = benchmark.weights if isinstance(benchmark, Portfolio) else pd.Series(benchmark)
+        diff = (self.weights - bench_w.reindex(self.weights.index).fillna(0.0)).abs()
+        return float(diff.sum() / 2.0)
+
     def realised_metrics(self) -> dict[str, float]:
         r = self.return_series
         rf = self.market.config["portfolio"].get("risk_free", 0.0)
@@ -93,7 +124,10 @@ class Portfolio:
             "ann_return": annualise_return(r),
             "ann_vol": annualise_vol(r),
             "sharpe": sharpe_ratio(r, rf_annual=rf),
+            "sortino": self.sortino(),
             "max_drawdown": max_drawdown(r),
+            "var_95": self.value_at_risk(0.95),
+            "cvar_95": self.conditional_value_at_risk(0.95),
         }
 
     def summary(self) -> dict[str, float]:

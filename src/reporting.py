@@ -12,6 +12,7 @@ import pandas as pd
 
 from lagic_capital import run_lagic
 from portfolio import Portfolio
+from risk_attribution import diversification_ratio
 from utils import (
     OUT_TABLES,
     PALETTE,
@@ -23,8 +24,20 @@ from utils import (
 
 
 # ----------------------------------------------------------------- tables
-def comparison_table(portfolios: dict[str, Portfolio], config: dict) -> pd.DataFrame:
-    """Row per portfolio across return, risk, capital and accounting lenses."""
+def comparison_table(
+    portfolios: dict[str, Portfolio],
+    config: dict,
+    benchmark: Portfolio | None = None,
+    stress_losses: pd.Series | None = None,
+) -> pd.DataFrame:
+    """Row per portfolio across return, risk, tail, capital and accounting lenses.
+
+    Every portfolio is scored on the identical metric set. `benchmark` (defaults
+    to the first portfolio) anchors tracking error and turnover; `stress_losses`
+    (worst-case total impact per portfolio) supplies the Stress Loss column.
+    """
+    if benchmark is None:
+        benchmark = next(iter(portfolios.values()))
     rows = {}
     for name, pf in portfolios.items():
         cap = run_lagic(pf, config)
@@ -32,15 +45,23 @@ def comparison_table(portfolios: dict[str, Portfolio], config: dict) -> pd.DataF
         rows[name] = {
             "exp_return": s["expected_return"],
             "volatility": s["volatility"],
-            "realised_return": s["ann_return"],
             "sharpe": s["sharpe"],
+            "sortino": s["sortino"],
             "max_drawdown": s["max_drawdown"],
-            "carry": s["carry"],
+            "var_95": s["var_95"],
+            "cvar_95": s["cvar_95"],
             "duration": s["duration"],
+            "capital_charge": cap["capital_charge"],
+            "stress_loss": float(stress_losses[name]) if stress_losses is not None else float("nan"),
+            "liquidity": s["liquidity"],
+            "diversification_ratio": diversification_ratio(pf),
+            "turnover": pf.turnover_from(benchmark),
+            "tracking_error": pf.tracking_error(benchmark),
+            # retained context columns
+            "realised_return": s["ann_return"],
+            "carry": s["carry"],
             "core_fi": s["core_fi"],
             "risk_assets": s["risk_assets"],
-            "liquidity": s["liquidity"],
-            "capital_charge": cap["capital_charge"],
             "return_on_capital": cap["return_on_capital"],
         }
     return pd.DataFrame(rows).T
@@ -293,6 +314,47 @@ def chart_earnings_vol_contribution(s: pd.Series) -> None:
     save_chart(fig, "20_earnings_vol_contribution")
 
 
+def chart_duration_contribution(pf: Portfolio) -> None:
+    """Each asset's contribution to portfolio duration (weight x duration)."""
+    contrib = (pf.weights * pf.meta["duration"])
+    contrib = contrib[contrib.abs() > 1e-9].sort_values()
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ax.barh(contrib.index, contrib.values, color="#0072B2")
+    ax.axvline(0, color="#444", lw=0.8)
+    ax.set_xlabel("Contribution to portfolio duration (years)")
+    ax.set_title(f"Duration contribution by asset - {pf.name} (total {pf.duration():.2f}y)")
+    save_chart(fig, "21_duration_contribution")
+
+
+def chart_stress_grid(stress_grid: pd.DataFrame) -> None:
+    """Heatmap of every scenario (rows) against every portfolio (columns)."""
+    data = stress_grid.to_numpy() * 100
+    fig, ax = plt.subplots(figsize=(11, 7))
+    im = ax.imshow(data, cmap="RdYlGn", vmin=-np.abs(data).max(), vmax=np.abs(data).max(), aspect="auto")
+    ax.set_xticks(range(len(stress_grid.columns)), stress_grid.columns, rotation=30, ha="right", fontsize=8)
+    ax.set_yticks(range(len(stress_grid.index)), stress_grid.index, fontsize=8)
+    for i in range(data.shape[0]):
+        for j in range(data.shape[1]):
+            ax.text(j, i, f"{data[i, j]:.1f}", ha="center", va="center", fontsize=6.5, color="#222")
+    ax.set_title("Stress grid: instantaneous total impact (%) - every scenario x every portfolio")
+    fig.colorbar(im, ax=ax, shrink=0.7, label="impact (%)")
+    save_chart(fig, "22_stress_grid")
+
+
+def chart_philosophy_metrics(comp: pd.DataFrame, names: list[str]) -> None:
+    """Risk-adjusted return (Sharpe & Sortino) across construction philosophies."""
+    sub = comp.loc[[n for n in names if n in comp.index]]
+    fig, ax = plt.subplots(figsize=(11, 6))
+    x = np.arange(len(sub.index))
+    ax.bar(x - 0.2, sub["sharpe"], 0.4, label="Sharpe", color="#0072B2")
+    ax.bar(x + 0.2, sub["sortino"], 0.4, label="Sortino", color="#117733")
+    ax.set_xticks(x, sub.index, rotation=20, ha="right")
+    ax.set_ylabel("Ratio")
+    ax.set_title("Construction philosophies: risk-adjusted return (in-sample)")
+    ax.legend()
+    save_chart(fig, "23_philosophy_metrics")
+
+
 def chart_marginal_efficiency(marg: pd.DataFrame) -> None:
     fig, ax = plt.subplots(figsize=(9, 6))
     sizes = (marg["weight"] * 1500 + 20)
@@ -330,10 +392,11 @@ def write_markdown(results: dict) -> None:
     worst_s = stress["total_impact"].idxmin()
 
     md = []
-    md.append("# QBE-style multi-lens portfolio analysis - summary\n")
-    md.append("_Generated by `python src/main.py`. Dummy data; replace with real data via `data/processed/returns.csv` and `config.yaml`._\n")
-    md.append("## 1. Portfolio comparison\n")
-    md.append(_df_to_md(comp.round(4)))
+    md.append("# QBE-style Portfolio Optimisation Research Lab - summary\n")
+    md.append("_Generated by `python src/main.py`. Dummy data; replace with real data via `data/processed/returns.csv` and `config.yaml`. "
+              "Full report with charts: `outputs/report.md`._\n")
+    md.append("## 1. Construction philosophies compared (headline metrics)\n")
+    md.append(_df_to_md(comp[_COMPARISON_COLS].round(4)))
     md.append("\n## 2. Headline read across the lenses\n")
     md.append(f"- **Baseline**: {base.core_fi_share():.0%} core fixed income / {base.risk_asset_share():.0%} risk assets; "
               f"forward expected return **{base.expected_return():.2%}**, volatility **{base.volatility():.2%}**, "
@@ -362,8 +425,18 @@ def write_markdown(results: dict) -> None:
     (ROOT / "outputs" / "summary_report.md").write_text("\n".join(md), encoding="utf-8")
 
 
+# Headline comparison columns (Step 7), in reading order.
+_COMPARISON_COLS = [
+    "exp_return", "volatility", "sharpe", "sortino", "max_drawdown",
+    "var_95", "cvar_95", "duration", "capital_charge", "stress_loss",
+    "liquidity", "diversification_ratio", "turnover",
+]
+
+
 def write_full_report(results: dict) -> None:
-    """A single comprehensive markdown report across every lens, with charts."""
+    """A single comprehensive markdown report, structured as two parts:
+    Part A compares construction philosophies; Part B applies the evaluation
+    lenses (stress, capital, earnings, ALM, risk, liquidity) to the book."""
     config = results["config"]
     pf = results["portfolios"]
     base = pf["Baseline"]
@@ -374,100 +447,154 @@ def write_full_report(results: dict) -> None:
     dur = results["duration"]
     ra = results["risk_attribution"]
     dg = results["diagnostics"]
+    intra = results["intra_asset"]
     worst_s = stress["total_impact"].idxmin()
+    philosophies = [n for n in ["Equal-Weight", "Max-Sharpe", "Min-Variance",
+                                "Risk-Parity", "Max-Diversification"] if n in pf]
 
     def img(name, cap):
         return f"![{cap}](charts/{name}.png)\n\n*{cap}*\n"
 
+    def comp_md(rows=None, cols=_COMPARISON_COLS):
+        sub = comp if rows is None else comp.loc[[r for r in rows if r in comp.index]]
+        return _df_to_md(sub[cols].round(4))
+
     m = []
-    m.append("# QBE-style Multi-Lens Portfolio Report\n")
+    m.append("# QBE-style Portfolio Optimisation Research Lab - Report\n")
     m.append("_Generated by `python src/main.py` on dummy data. Every number reconciles to a CSV in `outputs/tables/`; "
              "replace `data/processed/returns.csv` and `config.yaml` with real data to refresh._\n")
+
+    # ----------------------------------------------------------- exec read
     m.append("## Executive read\n")
-    m.append("Classic mean-variance optimisation answers one question - return per unit of volatility. An insurer must "
-             "also see **regulatory capital**, **earnings stability**, **accounting (P&L vs OCI)** and **asset-liability "
-             "duration** at once. The table below shows portfolios with similar expected returns that differ sharply on "
-             "capital, drawdown and capital efficiency.\n")
-    m.append("## 1. Portfolio comparison\n")
-    m.append(_df_to_md(comp.round(4)) + "\n")
-    m.append("## 2. Lens 1 - Mean-variance optimisation\n")
-    m.append(img("01_efficient_frontier", "Figure 1. Constrained efficient frontier with key portfolios."))
-    m.append(f"Within the insurer constraints (min {config['portfolio']['min_core_fixed_income']:.0%} core fixed income, "
-             f"currency buckets, per-asset caps), the **Max-Sharpe** portfolio reaches expected return "
+    m.append("This report answers one question: **how should an institutional insurance portfolio be constructed when "
+             "several competing objectives apply at once?** It does that by *comparing* portfolio-construction "
+             "philosophies rather than crowning a single optimiser, then putting every portfolio through the same "
+             "evaluation lenses an insurer actually manages to - return, **regulatory capital**, **earnings stability**, "
+             "**accounting (P&L vs OCI)** and **asset-liability duration**.\n")
+    m.append("- **Part A - Construction philosophies** builds the candidate portfolios (equal weight, mean-variance, "
+             "minimum variance, risk parity, maximum diversification, plus the capital-aware optimisers) and scores them "
+             "on one identical metric set.\n"
+             "- **Part B - Evaluation lenses** stress-tests, capital-charges, earnings-tests and ALM-tests the book, "
+             "showing why two portfolios with the same Sharpe can differ sharply on capital, drawdown and earnings.\n")
+    m.append("The single comparison table below is the heart of the lab; everything after it explains the trade-offs it "
+             "exposes.\n")
+
+    # =========================================================== PART A
+    m.append("## Part A - Portfolio construction philosophies\n")
+    m.append("### A1. The philosophies\n")
+    m.append("Each optimiser is independent and produces a `Portfolio` scored on the same metrics. Risk parity and "
+             "maximum diversification are solved under the **same insurer constraints** as mean-variance (min "
+             f"{config['portfolio']['min_core_fixed_income']:.0%} core fixed income, currency buckets, per-asset caps), so "
+             "the comparison is like-for-like; equal weight is the deliberately unconstrained naive 1/N benchmark.\n")
+    m.append("- **Equal weight (1/N)** - no optimisation, no mandate constraints: the bar every optimiser must beat.\n"
+             "- **Mean-variance (Max-Sharpe)** - most return per unit of volatility within the constraints.\n"
+             "- **Minimum variance** - lowest achievable volatility.\n"
+             "- **Risk parity** - every asset contributes an equal share of portfolio risk.\n"
+             "- **Maximum diversification** - maximises the diversification ratio (weighted-avg asset vol / portfolio vol).\n"
+             "- **Capital-aware (Max-RoC, Capital-Budgeted)** - optimise return per unit of, or subject to, regulatory capital.\n"
+             "- **Baseline / Risk 20%** - the insurer's strategic book and a risk-scaled scenario for reference.\n"
+             "- _Roadmap placeholders_: **Black-Litterman** and **robust optimisation** are scaffolded in "
+             "`src/construction.py` (documented, not yet wired into the comparison).\n")
+    m.append("### A2. Side-by-side comparison\n")
+    m.append("Every portfolio, every headline metric (the full set, including the retained context columns, is in "
+             "`outputs/tables/portfolio_comparison.csv`):\n")
+    m.append(comp_md() + "\n")
+    m.append("_VaR / CVaR are historical monthly 95% figures (signed; negative = loss); stress loss is the worst "
+             "instantaneous scenario; turnover (and tracking error, in the CSV) is measured against the Baseline book._\n")
+    m.append(img("23_philosophy_metrics", "Figure 1. Risk-adjusted return (Sharpe & Sortino) across the construction philosophies."))
+    m.append(img("01_efficient_frontier", "Figure 2. Constrained efficient frontier with each philosophy plotted."))
+    m.append(f"Within the insurer constraints the **Max-Sharpe** portfolio reaches expected return "
              f"**{pf['Max-Sharpe'].expected_return():.2%}** at volatility **{pf['Max-Sharpe'].volatility():.2%}** "
-             f"(Sharpe {pf['Max-Sharpe'].summary()['sharpe']:.2f}), versus the baseline at "
-             f"**{base.expected_return():.2%}** / **{base.volatility():.2%}**.\n")
-    m.append(img("02_allocation_comparison", "Figure 2. Allocation by capital category across portfolios."))
-    m.append("## 3. Lens 2 - Instantaneous stress testing\n")
-    m.append(img("03_stress_scenarios", "Figure 3. Stress impacts split into P&L and OCI."))
+             f"(Sharpe {comp.loc['Max-Sharpe','sharpe']:.2f}), versus the baseline at "
+             f"**{base.expected_return():.2%}** / **{base.volatility():.2%}**. **Min-Variance** and **Risk-Parity** trade "
+             "return for stability; **Equal-Weight**, unconstrained, takes the most risk and the largest turnover to "
+             "implement. No single portfolio wins on every column - which is the point.\n")
+    m.append(img("02_allocation_comparison", "Figure 3. Allocation by capital category across philosophies."))
+
+    # =========================================================== PART B
+    m.append("## Part B - Evaluation lenses\n")
+    m.append("The same portfolios, now seen through the lenses an insurer is actually governed by. Figures below focus on "
+             "the Baseline book unless stated; the stress grid covers every portfolio.\n")
+
+    m.append("### B1. Lens 2 - Instantaneous stress testing\n")
+    m.append(img("22_stress_grid", "Figure 4. Stress grid - every scenario against every portfolio (total impact, %)."))
+    m.append(img("03_stress_scenarios", "Figure 5. Baseline stress impacts split into P&L and OCI."))
     m.append(_df_to_md(stress.round(4)) + "\n")
-    m.append(f"The worst instantaneous scenario is **{worst_s}** at **{stress.loc[worst_s,'total_impact']:.2%}** "
+    m.append(f"The worst instantaneous scenario for the Baseline is **{worst_s}** at **{stress.loc[worst_s,'total_impact']:.2%}** "
              f"(P&L {stress.loc[worst_s,'pnl_impact']:.2%}, OCI {stress.loc[worst_s,'oci_impact']:.2%}). Rate shocks hit the "
-             "P&L (matched FI) book; equity/property shocks hit the OCI (surplus) book.\n")
-    m.append("## 4. Lens 5 - LAGIC-style capital\n")
-    m.append(img("04_capital_by_category", "Figure 4. Capital charge by category."))
+             "P&L (matched FI) book; equity/property shocks hit the OCI (surplus) book. The grid shows how the worst-case "
+             "loss shifts across philosophies - the **Stress Loss** column in Part A's table is each portfolio's worst row.\n")
+
+    m.append("### B2. Lens 5 - LAGIC-style capital\n")
+    m.append(img("04_capital_by_category", "Figure 6. Capital charge by category (Baseline)."))
     m.append(f"The binding capital charge is **{lag['capital_charge']:.2%}** of assets "
              f"(binding basis: {lag['binding_basis']}; worst single scenario: {lag['worst_scenario']}). "
              f"Return on capital is **{lag['return_on_capital']:.2f}x**. The largest capital consumers:\n")
     m.append(_df_to_md(lag["marginal_capital"].head(6).rename("capital").to_frame()) + "\n")
-    m.append(img("14_capital_efficient_frontier", "Figure 5. Capital-efficient frontier (return vs capital)."))
+    m.append(img("14_capital_efficient_frontier", "Figure 7. Capital-efficient frontier (return vs capital)."))
     m.append(f"Optimising return **per unit of capital** gives the Max-RoC portfolio: expected return "
              f"**{pf['Max-RoC'].expected_return():.2%}** at capital charge **{comp.loc['Max-RoC','capital_charge']:.2%}** "
              f"(RoC {comp.loc['Max-RoC','return_on_capital']:.2f}x). Conversely, **holding capital at the baseline's "
              f"level**, the capital-budgeted optimiser lifts expected return to "
              f"**{pf['Capital-Budgeted'].expected_return():.2%}** (vs baseline {base.expected_return():.2%}) - more return "
              "for the same capital. For an insurer, capital - not volatility - is usually the binding constraint.\n")
-    m.append("## 5. Lens 3/6 - Through-time earnings & carry\n")
-    m.append(img("08_earnings_vs_plan", "Figure 6. Annual earnings vs plan (red = missed)."))
+
+    m.append("### B3. Lens 3/6 - Through-time earnings & carry\n")
+    m.append(img("08_earnings_vs_plan", "Figure 8. Annual earnings vs plan (red = missed)."))
     m.append(f"Annual earnings (P&L) volatility is **{earn['earnings_volatility']:.2%}**; the chance of missing the "
              f"{earn['plan_target']:.1%} plan is **{earn['plan_miss_prob']:.0%}**; predictable **carry funds "
              f"{earn['carry_share_of_return']:.0%}** of the return.\n")
-    m.append(img("11_duration_earnings_example", "Figure 7. Duration & earnings stability: a duration-matched book earns "
+    m.append(img("11_duration_earnings_example", "Figure 9. Duration & earnings stability: a duration-matched book earns "
                  "steady carry whichever way rates move; an unmatched book is an unhedged rate bet."))
     et = results["earnings_risk"]["table"].loc["Baseline"]
-    m.append(img("19_earnings_at_risk", "Figure 7b. Bootstrap distribution of plan-year P&L, with earnings-at-risk and CTE95."))
+    m.append(img("19_earnings_at_risk", "Figure 10. Bootstrap distribution of plan-year P&L, with earnings-at-risk and CTE95."))
     m.append(f"Block-bootstrapping the monthly P&L into plan-year outcomes gives an **earnings-at-risk (5%) of "
              f"{et['earnings_at_risk_5pc']:.2%}** and a **CTE95 of {et['cte_95']:.2%}** (the average of the worst 1-in-20 "
              f"years) against a {et['plan_target']:.1%} plan - the downside an insurer's capital must absorb.\n")
-    m.append("## 6. Lens 4 - Duration / ALM\n")
-    m.append(img("09_duration_gap", "Figure 8. Asset vs liability duration by currency."))
+
+    m.append("### B4. Lens 4 - Duration / ALM\n")
+    m.append(img("09_duration_gap", "Figure 11. Asset vs liability duration by currency."))
+    m.append(img("21_duration_contribution", "Figure 12. Each asset's contribution to portfolio duration."))
     rs = dur["rate_shock"]
     m.append(f"The total dollar-duration gap is **{dur['total_dollar_duration_gap']:+.2f}y** (assets vs liabilities). "
              f"A +100bp shock moves **economic surplus {rs['economic_surplus_impact']:+.2%}** but **P&L earnings "
              f"{rs['pnl_earnings_impact']:+.2%}** - the difference (**{rs['economic_minus_pnl']:+.2%}**) is exactly the "
              "OCI/surplus book's rate exposure that bypasses earnings.\n")
-    m.append("## 7. Risk budgeting & diversification\n")
-    m.append(img("13_risk_contribution", "Figure 9. Risk contribution by asset and by capital category."))
-    m.append(img("12_correlation_heatmap", "Figure 10. Asset return correlation matrix."))
+
+    m.append("### B5. Risk budgeting & diversification\n")
+    m.append(img("13_risk_contribution", "Figure 13. Risk contribution by asset and by capital category."))
+    m.append(img("12_correlation_heatmap", "Figure 14. Asset return correlation matrix."))
     m.append(f"Diversification ratio **{ra['diversification_ratio']:.2f}** (1 = none); average pairwise correlation "
              f"**{ra['avg_pairwise_correlation']:.2f}**. Top risk contributors:\n")
     m.append(_df_to_md((ra["risk_by_asset"].head(5) * 100).round(1).rename("risk_%").to_frame()) + "\n")
-    m.append(img("20_earnings_vol_contribution", "Figure 10b. Which sleeves drive annual earnings (P&L) volatility."))
+    m.append(img("20_earnings_vol_contribution", "Figure 15. Which sleeves drive annual earnings (P&L) volatility."))
     evc = ra["earnings_vol_contribution"]
     m.append(f"Earnings (P&L) volatility is concentrated in **{evc.index[0]}** and **{evc.index[1]}** "
              f"({evc.iloc[0]:.0%} and {evc.iloc[1]:.0%} of P&L variance) - the long-duration P&L bonds whose "
              "mark-to-market flows through earnings. This is distinct from total-risk contribution: an asset can be small "
              "in the risk budget yet large in the *earnings* budget.\n")
-    m.append("## 8. Liquidity, credit quality & solvency\n")
-    m.append(img("15_liquidity_and_rating", "Figure 11. Liquidity tiers and rating distribution."))
+
+    m.append("### B6. Liquidity, credit quality & solvency\n")
+    m.append(img("15_liquidity_and_rating", "Figure 16. Liquidity tiers and rating distribution."))
     s = dg["surplus"]
     m.append(f"**{dg['liquidity']['pct_illiquid']:.0%}** of the book is illiquid; **{dg['rating']['sub_investment_grade']:.0%}** "
              f"is sub-investment-grade; effective number of assets **{dg['concentration']['effective_n_assets']:.1f}**. "
              f"Surplus is **{s['surplus']:.0%}** of assets (coverage {s['coverage_ratio']:.2f}x); the worst stress erodes "
              f"surplus by **{s['surplus_erosion_pct']:.0%}** to a coverage of {s['coverage_ratio_stressed']:.2f}x.\n")
-    m.append("## 9. Marginal efficiency & historical stress\n")
-    m.append(img("16_marginal_efficiency", "Figure 12. Return vs marginal capital per asset (bubble = weight)."))
+
+    m.append("### B7. Marginal efficiency & historical stress\n")
+    m.append(img("16_marginal_efficiency", "Figure 17. Return vs marginal capital per asset (bubble = weight)."))
     m.append("Realised behaviour through the embedded historical episodes:\n")
     m.append(_df_to_md(dg["historical_stress"].round(4)) + "\n")
-    m.append("## 10. Within-asset-class diversification (implementation alpha)\n")
-    m.append(img("17_intra_asset_uplift", "Figure 13. Same-risk return pickup and diversification benefit by class."))
-    intra = results["intra_asset"]
+
+    m.append("### B8. Within-asset-class diversification (implementation alpha)\n")
+    m.append(img("17_intra_asset_uplift", "Figure 18. Same-risk return pickup and diversification benefit by class."))
     m.append("The strategic allocation is fixed, but inside each class a better mix of sub-sleeves can add return at the "
              "**same risk**. Holding volatility at each class's benchmark level, the enhanced sub-allocation adds a few "
              f"basis points per class - **+{intra['portfolio_return_uplift_bps']:.1f} bps at the portfolio level, with the "
              "SAA completely unchanged**.\n")
     m.append(_df_to_md(intra["summary"].round(3)) + "\n")
-    m.append(img("18_intra_class_weights", "Figure 14. AUD Sovereign: the enhanced mix tilts to the belly of the curve "
+    m.append(img("18_intra_class_weights", "Figure 19. AUD Sovereign: the enhanced mix tilts to the belly of the curve "
                  "(5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk."))
     m.append("This is genuine *implementation* alpha: small, repeatable and orthogonal to the top-level allocation - "
              "exactly where an insurer with a constrained SAA can still add value.\n")
@@ -478,14 +605,17 @@ def write_full_report(results: dict) -> None:
              "realised sub-returns are too noisy for the tilt to pay reliably. The honest conclusion: harvest intra-class "
              "implementation alpha **only where the dispersion is structural**, size it modestly, and rebalance slowly to "
              "keep turnover low. Out-of-sample testing is exactly what separates a real edge from an in-sample mirage.\n")
-    m.append("## 11. Conclusion\n")
-    m.append("No single optimisation captures an insurer's problem. The Min-Variance and Max-RoC portfolios are far more "
-             "capital-efficient than the baseline; the Max-Sharpe portfolio improves risk-adjusted return; raising risk to "
-             "20% lifts return but costs capital and Sharpe. The right choice depends on which lens - return, drawdown, "
-             "capital, earnings stability or ALM - is binding for the business at the time. This framework makes that "
-             "trade-off explicit.\n")
+
+    # ----------------------------------------------------------- close
+    m.append("## Conclusion\n")
+    m.append("No single construction philosophy captures an insurer's problem. Equal weight is the naive benchmark; "
+             "Max-Sharpe improves risk-adjusted return; Min-Variance and Risk-Parity trade return for stability; "
+             "Max-Diversification spreads correlation risk; the Max-RoC and Capital-Budgeted optimisers are far more "
+             "capital-efficient. The right choice depends on which lens - return, drawdown, capital, earnings stability or "
+             "ALM - is binding for the business at the time. The lab makes that trade-off explicit and is built to add "
+             "new philosophies (Black-Litterman, robust, ML forecasts) behind the same comparison.\n")
     m.append("## Methodology & limitations\n")
-    m.append("Dummy data is a factor model (rates/credit/equity/property + idiosyncratic) with embedded GFC/COVID/2022 "
+    m.append("Dummy data is a factor model (rates/credit/equity/property/gold + idiosyncratic) with embedded GFC/COVID/2022 "
              "episodes. MVO uses forward `exp_return` assumptions and historical covariance. Realised-return, earnings-"
              "volatility and drawdown figures inherit the dummy data's one-off secular rate-decline tailwind and are "
              "illustrative, not forecasts. The LAGIC module is a "
@@ -534,13 +664,22 @@ def generate_all(results: dict) -> None:
     save_table(er["table"].round(5), "earnings_at_risk.csv")
     save_table(ra["earnings_vol_contribution"].rename("earnings_vol_share").to_frame(), "earnings_vol_contribution.csv")
     save_table(results["return_capital_budget"].round(5), "return_capital_budget_frontier.csv", index=False)
+    if "stress_grid" in results:
+        save_table(results["stress_grid"].round(5), "stress_grid.csv")
+
+    # construction philosophies shown side by side (Lens 1)
+    philosophies = [n for n in ["Equal-Weight", "Max-Sharpe", "Min-Variance",
+                                "Risk-Parity", "Max-Diversification"] if n in portfolios]
 
     # charts
-    chart_efficient_frontier(results["frontier"], {
-        "Baseline": base, "Max-Sharpe": portfolios["Max-Sharpe"],
-        "Min-Variance": portfolios["Min-Variance"], "Max-RoC": portfolios["Max-RoC"],
-        "Risk 20%": portfolios["Risk 20%"]})
-    chart_allocation_comparison({k: portfolios[k] for k in ["Baseline", "Max-Sharpe", "Max-RoC", "Risk 20%"]})
+    frontier_points = {"Baseline": base}
+    frontier_points.update({k: portfolios[k] for k in
+                            ["Max-Sharpe", "Min-Variance", "Risk-Parity",
+                             "Max-Diversification", "Max-RoC", "Risk 20%"] if k in portfolios})
+    chart_efficient_frontier(results["frontier"], frontier_points)
+    chart_allocation_comparison({k: portfolios[k] for k in
+                                 ["Baseline", "Equal-Weight", "Max-Sharpe", "Risk-Parity",
+                                  "Max-Diversification", "Max-RoC", "Risk 20%"] if k in portfolios})
     chart_stress(results["stress"])
     chart_capital_by_category(results["lagic"]["Baseline"]["category_charges"])
     chart_return_vs_vol(results["comparison"])
@@ -559,6 +698,10 @@ def generate_all(results: dict) -> None:
     chart_intra_weights(intra, "AUD Sovereign")
     chart_earnings_at_risk(er, config["portfolio"]["plan_return_target"])
     chart_earnings_vol_contribution(ra["earnings_vol_contribution"])
+    chart_duration_contribution(base)
+    if "stress_grid" in results:
+        chart_stress_grid(results["stress_grid"])
+    chart_philosophy_metrics(results["comparison"], ["Baseline"] + philosophies)
 
     write_markdown(results)
     write_full_report(results)

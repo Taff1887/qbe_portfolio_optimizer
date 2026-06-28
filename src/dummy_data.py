@@ -51,6 +51,11 @@ def _build_factors(dates: pd.DatetimeIndex, rng: np.random.Generator) -> pd.Data
     for i in range(1, n):
         prop[i] = 0.7 * prop[i - 1] + 0.3 * shock[i]
 
+    # --- Gold: a safe-haven commodity leg ----------------------------------
+    # Mild trend, high stand-alone vol, and a positive bid in crises (the
+    # diversifying flight-to-quality behaviour gold is held for).
+    gold = rng.normal(0.0028, 0.040, n)            # ~3.4%/yr drift, ~14%/yr vol
+
     # --- Inject crisis episodes (flight to quality + spread blow-out) -------
     gfc = _crisis_mask(dates, [("2008-09-01", "2009-02-28")])
     covid = _crisis_mask(dates, [("2020-02-01", "2020-03-31")])
@@ -67,10 +72,12 @@ def _build_factors(dates: pd.DatetimeIndex, rng: np.random.Generator) -> pd.Data
     equity[rebound] += 0.075              # sharp recoveries
     prop[gfc] -= 0.020
     prop[covid] -= 0.025
+    gold[gfc] += 0.030                    # safe-haven bid when equities fall
+    gold[covid] += 0.020
 
     return pd.DataFrame(
         {"d_rate": d_rate, "d_spread": d_spread, "d_struct": d_struct,
-         "equity": equity, "property": prop},
+         "equity": equity, "property": prop, "gold": gold},
         index=dates,
     )
 
@@ -88,12 +95,14 @@ def generate_returns(config: dict | None = None) -> tuple[pd.DataFrame, pd.DataF
         # Structured-credit sleeves also feel the extra structured spread leg.
         is_struct = a["capital_category"] in ("structured_senior", "structured_mezz")
         spread_change = factors["d_spread"] + (factors["d_struct"] if is_struct else 0.0)
+        is_gold = a["capital_category"] == "gold"
 
         systematic = (
             -a["duration"] * factors["d_rate"]
             - a["spread_duration"] * spread_change
             + a["equity_beta"] * factors["equity"]
             + a["property_beta"] * factors["property"]
+            + (factors["gold"] if is_gold else 0.0)
         )
         carry = a["yield"] / MONTHS_PER_YEAR
         target_vol = a["ann_vol"] / np.sqrt(MONTHS_PER_YEAR)
