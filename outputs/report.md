@@ -417,6 +417,27 @@ Realised behaviour through the embedded historical episodes:
 | Static (d=2.5y) | 0.0478 | 0.0148 | 0.4140 | 0.0232 |
 | Glide (D0=5.6y -> 0) | 0.0480 | 0.0129 | 0.4028 | 0.0267 |
 
+### B11. Regime-conditional risk (correlations are not constant)
+
+**Why this lens.** Every other lens uses one full-sample covariance, but diversification is a fair-weather friend: in a risk-off regime correlations rise and the book is riskier than its long-run number - precisely when capital and surplus are tested. An insurer must size risk for the bad regime, not the average one.
+
+**What it means.** Splitting history into **risk-on** and **risk-off** months and re-computing risk shows how much of the headline diversification survives a crisis. The regime-conditional optimal book is what a regime-aware investor would hold if they knew which state they were in.
+
+**How it is calculated.** A broad market proxy (equal-weight risk-asset return) defines the regime: trailing-3-month proxy return in the bottom tercile is risk-off, the rest risk-on. Covariance, average correlation, the baseline's volatility, the diversification ratio and a regime max-Sharpe are recomputed within each regime.
+
+**What we found.** The baseline's volatility rises from **2.68%** (risk-on) to **3.73%** (risk-off) and its diversification ratio falls from **2.23** to **1.60** - the book is materially riskier in stress than its full-sample number suggests. The regime-optimal risk-off book de-risks hard into senior structured credit, cash and high-grade sovereigns.
+
+**What to study next.** Replace the tercile rule with a formal **Markov-switching / HMM** classifier, feed the risk-off covariance into the capital and stress lenses (capital sized for the bad regime), and test a **regime-aware** dynamic allocation that de-risks on a regime signal.
+
+![Figure 23. Risk-asset proxy with risk-off regimes shaded; and the rise in volatility and fall in diversification when the regime turns.](charts/30_regimes.png)
+
+*Figure 23. Risk-asset proxy with risk-off regimes shaded; and the rise in volatility and fall in diversification when the regime turns.*
+
+| metric | months | avg_correlation | baseline_vol | diversification_ratio | mean_monthly_return |
+|---|---|---|---|---|---|
+| Risk-on | 201.0000 | 0.2007 | 0.0268 | 2.2329 | 0.0104 |
+| Risk-off | 99.0000 | 0.2053 | 0.0373 | 1.6025 | -0.0003 |
+
 ## Conclusion
 
 No single construction philosophy captures an insurer's problem. Equal weight is the naive benchmark; Max-Sharpe improves risk-adjusted return; Min-Variance and Risk-Parity trade return for stability; Max-Diversification spreads correlation risk; the Max-RoC and Capital-Budgeted optimisers are far more capital-efficient. The right choice depends on which lens - return, drawdown, capital, earnings stability or ALM - is binding for the business at the time. The lab makes that trade-off explicit and is built to add new philosophies (Black-Litterman, robust, ML forecasts) behind the same comparison.

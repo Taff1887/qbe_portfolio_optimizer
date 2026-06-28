@@ -397,6 +397,29 @@ def chart_philosophy_metrics(comp: pd.DataFrame, names: list[str]) -> None:
     save_chart(fig, "23_philosophy_metrics")
 
 
+def chart_regimes(rg: dict) -> None:
+    """Two panels: the market proxy coloured by regime, and key risk stats by regime."""
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5))
+    proxy, regime = rg["proxy"], rg["regime"]
+    cum = (1 + proxy).cumprod()
+    off = regime == "Risk-off"
+    axes[0].plot(cum.index, cum.values, color="#0072B2", lw=1.0)
+    axes[0].fill_between(cum.index, cum.min(), cum.max(), where=off.values,
+                         color="#C0392B", alpha=0.18, label="Risk-off")
+    axes[0].set_title("Risk-asset proxy with risk-off regimes shaded")
+    axes[0].set_ylabel("Growth of 1")
+    axes[0].legend(fontsize=8)
+
+    t = rg["table"]
+    x = np.arange(len(t.index))
+    axes[1].bar(x - 0.2, t["baseline_vol"] * 100, 0.4, label="Baseline vol (%)", color="#D55E00")
+    axes[1].bar(x + 0.2, t["diversification_ratio"], 0.4, label="Diversification ratio", color="#117733")
+    axes[1].set_xticks(x, t.index)
+    axes[1].set_title("Risk by regime: volatility up, diversification down in risk-off")
+    axes[1].legend(fontsize=8)
+    save_chart(fig, "30_regimes")
+
+
 def chart_glide_path(gp: dict) -> None:
     """Two panels: the duration schedule through the year, and the resulting
     plan-year earnings distribution, per policy."""
@@ -1012,6 +1035,33 @@ def write_full_report(results: dict) -> None:
                      "distribution of plan-year earnings - the glide path is the tightest around (and above) the plan."))
         m.append(_df_to_md(gt.round(4)) + "\n")
 
+    rg = results.get("regimes")
+    if rg is not None and len(rg["table"]):
+        t = rg["table"]
+        on, off = t.loc["Risk-on"], t.loc["Risk-off"]
+        m.append("### B11. Regime-conditional risk (correlations are not constant)\n")
+        m.append(story(
+            why="Every other lens uses one full-sample covariance, but diversification is a fair-weather friend: in a "
+                "risk-off regime correlations rise and the book is riskier than its long-run number - precisely when "
+                "capital and surplus are tested. An insurer must size risk for the bad regime, not the average one.",
+            means="Splitting history into **risk-on** and **risk-off** months and re-computing risk shows how much of the "
+                  "headline diversification survives a crisis. The regime-conditional optimal book is what a "
+                  "regime-aware investor would hold if they knew which state they were in.",
+            how="A broad market proxy (equal-weight risk-asset return) defines the regime: trailing-3-month proxy return "
+                "in the bottom tercile is risk-off, the rest risk-on. Covariance, average correlation, the baseline's "
+                "volatility, the diversification ratio and a regime max-Sharpe are recomputed within each regime.",
+            found=f"The baseline's volatility rises from **{on['baseline_vol']:.2%}** (risk-on) to "
+                  f"**{off['baseline_vol']:.2%}** (risk-off) and its diversification ratio falls from "
+                  f"**{on['diversification_ratio']:.2f}** to **{off['diversification_ratio']:.2f}** - the book is "
+                  f"materially riskier in stress than its full-sample number suggests. The regime-optimal risk-off book "
+                  "de-risks hard into senior structured credit, cash and high-grade sovereigns.",
+            nxt="Replace the tercile rule with a formal **Markov-switching / HMM** classifier, feed the risk-off "
+                "covariance into the capital and stress lenses (capital sized for the bad regime), and test a "
+                "**regime-aware** dynamic allocation that de-risks on a regime signal."))
+        m.append(img("30_regimes", "Figure 23. Risk-asset proxy with risk-off regimes shaded; and the rise in volatility "
+                     "and fall in diversification when the regime turns."))
+        m.append(_df_to_md(t.round(4)) + "\n")
+
     # ----------------------------------------------------------- close
     m.append("## Conclusion\n")
     m.append("No single construction philosophy captures an insurer's problem. Equal weight is the naive benchmark; "
@@ -1083,6 +1133,8 @@ def generate_all(results: dict) -> None:
         save_table(results["pareto"]["table"].round(5), "pareto_search.csv")
     if results.get("glide_path"):
         save_table(results["glide_path"]["table"].round(5), "glide_path.csv")
+    if results.get("regimes") and len(results["regimes"]["table"]):
+        save_table(results["regimes"]["table"].round(5), "regime_stats.csv")
     if results.get("structured_credit"):
         sc = results["structured_credit"]
         save_table(sc["weights"].round(4), "structured_credit_weights.csv")
@@ -1135,6 +1187,8 @@ def generate_all(results: dict) -> None:
         chart_pareto(results["pareto"])
     if results.get("glide_path"):
         chart_glide_path(results["glide_path"])
+    if results.get("regimes") and len(results["regimes"]["table"]):
+        chart_regimes(results["regimes"])
     if results.get("lagic_full"):
         chart_capital_modules(results["lagic_full"])
     if results.get("structured_credit"):

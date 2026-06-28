@@ -20,6 +20,7 @@ import intra_asset
 import lagic_capital
 import multi_objective
 import optimizer
+import regimes
 import reporting
 import risk_attribution
 import stress_testing
@@ -105,6 +106,7 @@ def build_results(regenerate: bool = False) -> dict:
         "pareto": pareto,
         "glide_path": glide_path.run_glide_path(config),
         "structured_credit": structured_credit.run_structured_credit(market, config),
+        "regimes": regimes.run_regimes(market, config, base),
     }
 
 
