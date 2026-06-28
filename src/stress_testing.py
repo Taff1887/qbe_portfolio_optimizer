@@ -75,6 +75,39 @@ def worst_scenario(stress_table: pd.DataFrame) -> tuple[str, float]:
     return s.idxmin(), float(s.min())
 
 
+def reverse_stress(portfolio: Portfolio, config: dict, net_duration_gap_years: float) -> pd.DataFrame:
+    """Reverse stress test: instead of 'given a shock, what is the loss', solve
+    'what single-factor move *breaches* a given loss limit'.
+
+    For each risk factor the portfolio loss is linear in the shock, so the breach
+    move = limit / sensitivity. Rate moves use the *net* (asset-minus-liability)
+    duration for the economic-surplus limit and the gross asset duration for the
+    P&L-earnings limit. Answers 'how big a move wipes out surplus / breaks plan?'.
+    """
+    meta, w = portfolio.meta, portfolio.weights
+    surplus = 1.0 - config["portfolio"].get("liability_ratio", 0.82)
+    earn_lim = config.get("reverse_stress", {}).get("earnings_limit", 0.02)
+    rate_gross = portfolio.duration()
+    rate_net = abs(net_duration_gap_years)
+    spread = portfolio.spread_duration()
+    eqty = float((w * meta["equity_beta"]).sum())
+    prop = float((w * meta["property_beta"]).sum())
+
+    def row(limit_loss, rdur):
+        return {
+            "limit_loss": limit_loss,
+            "rates_bps": limit_loss / rdur * 1e4 if rdur > 1e-9 else float("inf"),
+            "credit_spread_bps": limit_loss / spread * 1e4 if spread > 1e-9 else float("inf"),
+            "equity_pct": -(limit_loss / eqty) if eqty > 1e-9 else float("-inf"),
+            "property_pct": -(limit_loss / prop) if prop > 1e-9 else float("-inf"),
+        }
+
+    return pd.DataFrame({
+        f"Erode all surplus ({surplus:.0%})": row(surplus, rate_net),
+        f"P&L loss of {earn_lim:.0%}": row(earn_lim, rate_gross),
+    }).T
+
+
 def stress_matrix(portfolios: dict[str, Portfolio], config: dict) -> pd.DataFrame:
     """Total instantaneous impact of every scenario on every portfolio.
 

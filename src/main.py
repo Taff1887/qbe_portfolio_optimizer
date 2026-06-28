@@ -92,6 +92,7 @@ def build_results(regenerate: bool = False) -> dict:
         "stress": stress,
         "stress_grid": stress_grid,
         "worst_stress": worst_stress,
+        "reverse_stress": stress_testing.reverse_stress(base, config, dur["total_dollar_duration_gap"]),
         "lagic": {name: lagic_capital.run_lagic(pf, config) for name, pf in portfolios.items()},
         "lagic_full": lagic_full,
         "earnings": earnings_model.run_earnings(base, config),

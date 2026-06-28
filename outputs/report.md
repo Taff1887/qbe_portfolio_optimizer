@@ -146,6 +146,15 @@ The same portfolios, now seen through the lenses an insurer is actually governed
 
 **What to study next.** Add second-order (convexity) terms for large moves, correlated multi-factor shocks calibrated to history, and a **reverse stress test** - solve for the scenario that breaches a chosen earnings or surplus limit, rather than guessing scenarios up front.
 
+**Reverse stress test.** Instead of guessing scenarios, solve for the single-factor move that *breaches* a chosen limit (loss = limit / sensitivity). It answers 'how big a move wipes out surplus, or costs 2% of earnings?' - and reads across to where the book is fragile vs resilient:
+
+| metric | limit_loss | rates_bps | credit_spread_bps | equity_pct | property_pct |
+|---|---|---|---|---|---|
+| Erode all surplus (18%) | 0.2000 | 6279.8000 | 977.4000 | -1.6000 | -5.4000 |
+| P&L loss of 2% | 0.0000 | 48.0000 | 108.6000 | -0.2000 | -0.6000 |
+
+_Equity/property moves beyond -100% mean that factor **cannot** breach the limit on its own. The book is very solvency-resilient to any single factor (the 18% surplus is a deep buffer), but its **P&L is most sensitive to rates** - a ~48bp move alone costs 2% of earnings, which is exactly why the in-year duration glide path (B10) matters._
+
 ### B2. Lens 5 - LAGIC-style capital
 
 ![Figure 6. Capital charge by category (Baseline).](charts/04_capital_by_category.png)

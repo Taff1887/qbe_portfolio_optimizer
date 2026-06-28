@@ -764,6 +764,17 @@ def write_full_report(results: dict) -> None:
             "and a **reverse stress test** - solve for the scenario that breaches a chosen earnings or surplus limit, "
             "rather than guessing scenarios up front."))
 
+    rev = results.get("reverse_stress")
+    if rev is not None:
+        m.append("**Reverse stress test.** Instead of guessing scenarios, solve for the single-factor move that *breaches* "
+                 "a chosen limit (loss = limit / sensitivity). It answers 'how big a move wipes out surplus, or costs 2% of "
+                 "earnings?' - and reads across to where the book is fragile vs resilient:\n")
+        m.append(_df_to_md(rev.round(1)) + "\n")
+        m.append("_Equity/property moves beyond -100% mean that factor **cannot** breach the limit on its own. The book is "
+                 "very solvency-resilient to any single factor (the 18% surplus is a deep buffer), but its **P&L is most "
+                 "sensitive to rates** - a ~48bp move alone costs 2% of earnings, which is exactly why the in-year duration "
+                 "glide path (B10) matters._\n")
+
     m.append("### B2. Lens 5 - LAGIC-style capital\n")
     m.append(img("04_capital_by_category", "Figure 6. Capital charge by category (Baseline)."))
     m.append(story(
@@ -1138,6 +1149,8 @@ def generate_all(results: dict) -> None:
         save_table(results["glide_path"]["table"].round(5), "glide_path.csv")
     if results.get("regimes") and len(results["regimes"]["table"]):
         save_table(results["regimes"]["table"].round(5), "regime_stats.csv")
+    if results.get("reverse_stress") is not None:
+        save_table(results["reverse_stress"].round(2), "reverse_stress.csv")
     if results.get("structured_credit"):
         sc = results["structured_credit"]
         save_table(sc["weights"].round(4), "structured_credit_weights.csv")
