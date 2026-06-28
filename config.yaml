@@ -38,19 +38,19 @@ market_data:
     "USD Sovereign":    "IEF"       # iShares 7-10y Treasury
     "GBP Sovereign":    "IGLT.L"    # iShares Core UK Gilts
     "EUR Sovereign":    "SEGA.L"    # iShares Core EUR Govt Bond
-    "NZD Sovereign":    ""          # no clean ETF proxy - supply an index series
+    "NZD Sovereign":    "IGOV"      # iShares Intl Treasury (proxy: developed ex-US sovereign rates)
     "CAD Sovereign":    "XGB.TO"    # iShares Canadian Government Bond
     "IG Credit":        "LQD"       # iShares iBoxx IG Corporate
     "Corporate Credit": "CRED.AX"   # BetaShares AUD Investment Grade Corporate
     "CLO AAA":          "JAAA"      # Janus AAA CLO (short history, from 2020)
-    "ABS":              ""          # no broad ABS ETF - supply an index series
+    "ABS":              "VCSH"      # Vanguard Short-Term Corporate (proxy for short securitised/ABS)
     "RMBS":             "MBB"       # iShares MBS
     "CMBS":             "CMBS"      # iShares CMBS
     "Cash":             "BIL"       # 1-3m T-Bills
     "High Yield":       "HYG"       # iShares iBoxx HY Corporate
     "CLO BBB":          "JBBB"      # Janus B-BBB CLO (short history, from 2022)
     "Private Credit":   "BIZD"      # VanEck BDC Income (listed private-credit proxy)
-    "Infra Debt":       ""          # no clean ETF proxy - supply an index series
+    "Infra Debt":       "VCLT"      # Vanguard Long-Term Corporate (proxy for IG infra debt)
     "Infra Equity":     "IGF"       # iShares Global Infrastructure
     "Listed Equities":  "ACWI"      # iShares MSCI ACWI
     "Unlisted Property": "VNQ"      # Vanguard Real Estate (listed proxy for unlisted)
@@ -59,7 +59,9 @@ market_data:
     "Private Credit": "BDC index is a listed proxy; true private credit is unlisted and smoother."
     "Unlisted Property": "Listed REIT proxy; unlisted property is appraisal-smoothed (lower measured vol)."
     "CLO AAA / CLO BBB": "CLO ETFs have short histories (2020/2022); use a longer index for full-period analysis."
-    "NZD Sovereign / ABS / Infra Debt": "No clean liquid ETF; supply a real index series (Bloomberg/ICE) to include."
+    "NZD Sovereign": "IGOV is developed ex-US sovereign (proxy for NZD rates); swap for an NZGB index when available."
+    "ABS": "VCSH (short IG corporate) stands in for short securitised/ABS; swap for an ABS index when available."
+    "Infra Debt": "VCLT (long IG corporate) stands in for IG infrastructure debt; swap for an infra-debt index when available."
 
 portfolio:
   risk_asset_target: 0.15     # baseline risk-asset share (core FI = 1 - this)
