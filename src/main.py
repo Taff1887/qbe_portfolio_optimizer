@@ -15,6 +15,7 @@ import duration_model
 import earnings_model
 import earnings_risk
 import factor_analysis
+import glide_path
 import intra_asset
 import lagic_capital
 import multi_objective
@@ -98,6 +99,7 @@ def build_results(regenerate: bool = False) -> dict:
         "earnings_risk": earnings_risk.run_earnings_risk(portfolios, config),
         "factor_analysis": factor_analysis.run_factor_analysis(base, config),
         "pareto": pareto,
+        "glide_path": glide_path.run_glide_path(config),
     }
 
 

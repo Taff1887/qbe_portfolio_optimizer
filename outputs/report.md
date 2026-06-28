@@ -354,6 +354,28 @@ Realised behaviour through the embedded historical episodes:
 
 **What to study next.** Build structured credit out **granularly** - CLO tranches by rating and vintage, US vs EU, ABS/RMBS/CMBS sub-types on real index data - since it is both the strongest result here and the strategic growth area. Harvest only where dispersion is structural, size modestly, and rebalance slowly to keep turnover low.
 
+### B10. Dynamic duration glide path (through-time earnings protection)
+
+**Why this lens.** Every lens so far is a *position* at a point in time. But the CFO's real lever is a *policy through time*: take interest-rate duration early in the plan year to immunise the remaining-year earnings against rate moves, then wind it down toward year-end as the number is banked. No point-in-time optimiser can see this - it is the gap the brief singled out, and the most novel piece here.
+
+**What it means.** The rate exposure of the *remaining* year shrinks as the year runs off, so the duration needed to protect it declines too - a natural **glide path**. A static duration over-hedges late in the year (carrying rate risk on earnings already banked); too little under-hedges throughout.
+
+**How it is calculated.** Stylised 12-month simulation: monthly earnings = carry - (d_t - h_t)·dr_t + non-rate noise, where the hedge target h_t = L·(months remaining)/12. Rate paths are block-bootstrapped from history (demeaned, so duration is a pure risk lever); the static level and the glide start are each optimised to minimise the plan-miss probability under common random numbers.
+
+**What we found.** The optimised **glide path cuts earnings volatility to 1.29%** (vs 2.17% for a short, no-duration book), lifts the worst-case earnings floor (5% earnings-at-risk **2.67%** vs 1.36%) and lowers the plan-miss probability to **40%** - for the same expected earnings. Winding duration down as the year runs off beats any constant duration.
+
+**What to study next.** Make the glide **path-dependent** (cut duration once cumulative earnings clear the plan, hold it while behind), drive it off the *actual* P&L-book duration and liability profile rather than a stylised L, and let the optimiser choose the whole monthly schedule (not just a linear wind-down).
+
+![Figure 22. Left: duration held through the plan year by policy. Right: the resulting distribution of plan-year earnings - the glide path is the tightest around (and above) the plan.](charts/27_glide_path.png)
+
+*Figure 22. Left: duration held through the plan year by policy. Right: the resulting distribution of plan-year earnings - the glide path is the tightest around (and above) the plan.*
+
+| metric | mean_earnings | earnings_vol | prob_miss_plan | earnings_at_risk_5pc |
+|---|---|---|---|---|
+| Short (no duration) | 0.0480 | 0.0217 | 0.4412 | 0.0136 |
+| Static (d=2.5y) | 0.0478 | 0.0148 | 0.4140 | 0.0232 |
+| Glide (D0=5.6y -> 0) | 0.0480 | 0.0129 | 0.4028 | 0.0267 |
+
 ## Conclusion
 
 No single construction philosophy captures an insurer's problem. Equal weight is the naive benchmark; Max-Sharpe improves risk-adjusted return; Min-Variance and Risk-Parity trade return for stability; Max-Diversification spreads correlation risk; the Max-RoC and Capital-Budgeted optimisers are far more capital-efficient. The right choice depends on which lens - return, drawdown, capital, earnings stability or ALM - is binding for the business at the time. The lab makes that trade-off explicit and is built to add new philosophies (Black-Litterman, robust, ML forecasts) behind the same comparison.

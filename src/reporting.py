@@ -355,6 +355,28 @@ def chart_philosophy_metrics(comp: pd.DataFrame, names: list[str]) -> None:
     save_chart(fig, "23_philosophy_metrics")
 
 
+def chart_glide_path(gp: dict) -> None:
+    """Two panels: the duration schedule through the year, and the resulting
+    plan-year earnings distribution, per policy."""
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    months = gp["months"]
+    for i, (name, sched) in enumerate(gp["schedules"].items()):
+        axes[0].plot(months, sched, marker="o", color=PALETTE[i % len(PALETTE)], label=name)
+    axes[0].set_xlabel("Month of plan year")
+    axes[0].set_ylabel("Duration held (years)")
+    axes[0].set_title("Duration policy through the year")
+    axes[0].legend(fontsize=8)
+
+    for i, (name, dist) in enumerate(gp["distributions"].items()):
+        axes[1].hist(dist * 100, bins=60, histtype="step", lw=1.6,
+                     color=PALETTE[i % len(PALETTE)], label=name)
+    axes[1].axvline(gp["plan"] * 100, color="#222", ls="--", lw=1.2, label=f"Plan {gp['plan']:.1%}")
+    axes[1].set_xlabel("Plan-year earnings (%)")
+    axes[1].set_title("Distribution of plan-year earnings by policy")
+    axes[1].legend(fontsize=8)
+    save_chart(fig, "27_glide_path")
+
+
 def chart_pareto(pareto: dict) -> None:
     """Capital vs return: candidates, the baseline, and the books that dominate it."""
     t = pareto["table"]
@@ -871,6 +893,36 @@ def write_full_report(results: dict) -> None:
             "sub-types on real index data - since it is both the strongest result here and the strategic growth area. "
             "Harvest only where dispersion is structural, size modestly, and rebalance slowly to keep turnover low."))
 
+    gp = results.get("glide_path")
+    if gp is not None:
+        gt = gp["table"]
+        names = list(gt.index)
+        short_row, glide_row = gt.iloc[0], gt.iloc[-1]
+        m.append("### B10. Dynamic duration glide path (through-time earnings protection)\n")
+        m.append(story(
+            why="Every lens so far is a *position* at a point in time. But the CFO's real lever is a *policy through "
+                "time*: take interest-rate duration early in the plan year to immunise the remaining-year earnings against "
+                "rate moves, then wind it down toward year-end as the number is banked. No point-in-time optimiser can see "
+                "this - it is the gap the brief singled out, and the most novel piece here.",
+            means="The rate exposure of the *remaining* year shrinks as the year runs off, so the duration needed to "
+                  "protect it declines too - a natural **glide path**. A static duration over-hedges late in the year "
+                  "(carrying rate risk on earnings already banked); too little under-hedges throughout.",
+            how="Stylised 12-month simulation: monthly earnings = carry - (d_t - h_t)·dr_t + non-rate noise, where the "
+                "hedge target h_t = L·(months remaining)/12. Rate paths are block-bootstrapped from history (demeaned, so "
+                "duration is a pure risk lever); the static level and the glide start are each optimised to minimise the "
+                "plan-miss probability under common random numbers.",
+            found=f"The optimised **glide path cuts earnings volatility to {glide_row['earnings_vol']:.2%}** (vs "
+                  f"{short_row['earnings_vol']:.2%} for a short, no-duration book), lifts the worst-case earnings floor "
+                  f"(5% earnings-at-risk **{glide_row['earnings_at_risk_5pc']:.2%}** vs {short_row['earnings_at_risk_5pc']:.2%}) "
+                  f"and lowers the plan-miss probability to **{glide_row['prob_miss_plan']:.0%}** - for the same expected "
+                  "earnings. Winding duration down as the year runs off beats any constant duration.",
+            nxt="Make the glide **path-dependent** (cut duration once cumulative earnings clear the plan, hold it while "
+                "behind), drive it off the *actual* P&L-book duration and liability profile rather than a stylised L, and "
+                "let the optimiser choose the whole monthly schedule (not just a linear wind-down)."))
+        m.append(img("27_glide_path", "Figure 22. Left: duration held through the plan year by policy. Right: the resulting "
+                     "distribution of plan-year earnings - the glide path is the tightest around (and above) the plan."))
+        m.append(_df_to_md(gt.round(4)) + "\n")
+
     # ----------------------------------------------------------- close
     m.append("## Conclusion\n")
     m.append("No single construction philosophy captures an insurer's problem. Equal weight is the naive benchmark; "
@@ -940,6 +992,8 @@ def generate_all(results: dict) -> None:
         save_table(fa["rolling_betas"].round(4), "factor_rolling_betas.csv")
     if results.get("pareto"):
         save_table(results["pareto"]["table"].round(5), "pareto_search.csv")
+    if results.get("glide_path"):
+        save_table(results["glide_path"]["table"].round(5), "glide_path.csv")
 
     # construction philosophies shown side by side (Lens 1)
     philosophies = [n for n in ["Equal-Weight", "Max-Sharpe", "Min-Variance",
@@ -979,6 +1033,8 @@ def generate_all(results: dict) -> None:
     chart_philosophy_metrics(results["comparison"], ["Baseline"] + philosophies)
     if results.get("pareto"):
         chart_pareto(results["pareto"])
+    if results.get("glide_path"):
+        chart_glide_path(results["glide_path"])
     if results.get("factor_analysis"):
         chart_factor_attribution(results["factor_analysis"]["attribution"])
         chart_rolling_factor_betas(results["factor_analysis"]["rolling_betas"])

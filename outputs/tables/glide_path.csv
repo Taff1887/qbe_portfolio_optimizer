@@ -1,0 +1,4 @@
+,mean_earnings,earnings_vol,prob_miss_plan,earnings_at_risk_5pc
+Short (no duration),0.04801,0.02169,0.44125,0.01362
+Static (d=2.5y),0.04782,0.01477,0.414,0.02316
+Glide (D0=5.6y -> 0),0.04804,0.0129,0.40275,0.0267
