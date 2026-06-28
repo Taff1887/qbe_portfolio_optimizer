@@ -1,55 +1,49 @@
 # Portfolio Optimisation Research Lab — Executive Summary
 
-*Two-page brief. Dummy data (Jan 2000–2024), built to mirror a QBE-style insurer book. Full detail + charts in `outputs/report.md`; every figure reconciles to a CSV in `outputs/tables/`.*
+*~2-page brief. The platform prefers real market data (FMP/Yahoo); where the run environment blocks those hosts it falls back to a transparent factor model and flags the report accordingly. Full detail + charts in `outputs/report.md`; every figure reconciles to a CSV in `outputs/tables/`.*
 
 ---
 
 ## What this is
 
-A research **platform**, not a single optimiser. It builds an insurer's portfolio several different ways (construction *philosophies*), scores them all on one identical metric set, then runs every book through the lenses an insurer is actually governed by: **regulatory capital, earnings stability, accounting (P&L vs OCI) and asset–liability duration**. The aim is a portfolio that is *acceptable across every lens* — and, where possible, a change that improves several at once ("grow the pie, don't re-slice it").
+A research **platform**, not a single optimiser. It builds an insurer's portfolio several different ways (construction *philosophies* — equal weight, mean-variance, min-variance, risk parity, max diversification, **Black-Litterman, robust, ML**, and capital/earnings-aware optimisers), scores them all on one identical metric set, then runs every book through the lenses an insurer is actually governed by: **regulatory capital, earnings stability, accounting (P&L vs OCI), asset–liability duration, and through-time policy**. The aim is a portfolio that is *acceptable across every lens* — and, where possible, a change that improves several at once ("grow the pie").
 
 ## Best findings
 
-**1. There is a clean "grow the pie" move — Max-Sharpe dominates the baseline on almost every axis.** For essentially the *same* expected return (5.08% vs 5.09%) it runs at **half the volatility** (1.7% vs 3.3%), **~30% less capital** (2.1% vs 2.5%), **a third of the drawdown** (−4.5% vs −16.1%) and a far smaller worst-case stress (−6.2% vs −11.3%). This is not a return/risk trade-off — it is a strict improvement, the single most actionable result.
+**1. There are genuine "free lunches" over the current book.** A multi-objective **Pareto search** found 8 portfolios that beat the baseline on *every* objective simultaneously. The best-balanced one earns the same-or-more return (5.1%) at **~⅔ the volatility, well under half the capital, lower earnings volatility and a smaller worst-case stress**. The current book is not on the efficient surface.
 
-**2. Capital — not volatility — is the binding lens, and it re-ranks everything.** Ranked by **return on capital**, the order flips entirely: Max-RoC **4.2×** and Min-Variance **3.6×** versus the Baseline's **2.0×**. Holding the capital budget fixed, the capital-budgeted optimiser lifts return from 5.09% to **5.88%**. For a regulated insurer this is the efficiency measure that matters, and the lab now computes it (a LAGIC-style worst-of-8-scenario asset risk charge) — the gap that originally motivated the build.
+**2. Capital — not volatility — is the binding lens, and it re-ranks everything.** By return on capital, Max-RoC (4.2×) and Min-Variance (3.6×) dominate the baseline (2.0×). Holding the capital budget fixed, the capital-budgeted optimiser lifts return from 5.1% to **5.9%**. The lab now computes a LAGIC-style charge (worst of an 8-scenario panel) **and** a fuller requirement (rate-net-of-liabilities + insurance + operational + concentration), where **insurance risk dominates** and the matched book's rate capital is tiny (~0.6%) — the structural payoff of ALM.
 
-**3. The track record is carry plus a one-off rates windfall — not directional skill.** Factor analysis decomposes the return into **~5.4% carry/alpha + 2.6% from the secular fall in rates + 0.9% equity**. The rates contribution is a tailwind that cannot repeat. This is the strongest argument for the multi-lens discipline and for forward humility: do not extrapolate the historical headline.
+**3. The dynamic duration "glide path" is the high-value novel piece.** Modelling the CFO lever — take duration early in the plan year to protect the earnings target, wind it down toward year-end — the optimised glide path **cuts plan-year earnings volatility to ~1.3% (vs ~2.2% for a short book), roughly doubles the worst-case earnings floor, and lowers the plan-miss probability**, all for the same expected earnings. No point-in-time optimiser can see this; it is a through-time *policy*.
 
-**4. Structured credit is the best *implementation* opportunity — and it survives out-of-sample.** Within-class analysis finds a same-risk pickup of **+44.7 bps in-sample and +35 bps out-of-sample, net of cost** in structured credit (CLOs by rating, ABS/RMBS/CMBS) — by far the largest, and one of only three sleeves (with Listed Equities and IG Credit) whose edge is robust out-of-sample. This lines up exactly with the stated strategic growth area.
+**4. Structured credit is the strongest, capital-aware opportunity.** The granular deep-dive (CLOs AAA→BB US/EU, ABS/RMBS/CMBS) finds a same-risk pickup of **~+40 bps**, but the capital angle is sharper: staying in **senior** tranches lifts return on capital from **1.2× to 2.1×** for almost the same return — the mezzanine reach is not paid for on a capital basis. This is the strategic growth area and the result is robust out-of-sample.
 
-**5. The earnings-plan risk that point-in-time models miss is real but manageable.** Through-time: a **16% chance of missing the 4.5% plan**, earnings-at-risk (5%) of **1.4%**, and a worst-1-in-20 outcome (CTE95) of **−0.5%**. Predictable carry funds ~59% of the return, which is what keeps the plan-miss probability that low.
+**5. The track record is carry plus a one-off rates windfall — not skill.** Factor analysis decomposes the return into **~5.4% carry/alpha + 2.6% from the secular fall in rates + 0.9% equity**. The rates piece cannot repeat — the strongest argument for the multi-lens discipline and for forward humility.
 
-**6. The ALM structure works as intended.** A +100bp shock moves **economic surplus +0.29% but P&L earnings +0.48%** — the difference is precisely the OCI/surplus book's rate exposure. Confirms the "matched in P&L, deliberately long in OCI" design: duration is taken for the long-term economics without disturbing the earnings line.
+**6. The earnings-plan risk point-in-time models miss is real but manageable.** ~16% chance of missing the 4.5% plan; earnings-at-risk (5%) ~1.4%; carry funds ~59% of return — which is what keeps the miss probability that low. The glide path (finding 3) is the lever to push it lower.
 
-## The contest at a glance
+## The contest at a glance (illustrative, current data basis)
 
-| Portfolio | Return | Vol | Sharpe | Max DD | Capital | RoC | Worst stress |
-|---|---|---|---|---|---|---|---|
-| **Baseline** | 5.09% | 3.28% | 1.75 | −16.1% | 2.54% | 2.01× | −11.3% |
-| **Max-Sharpe** | 5.08% | 1.70% | 2.15 | −4.5% | 2.11% | 2.41× | −6.2% |
-| **Min-Variance** | 4.72% | 1.57% | 1.97 | −5.1% | 1.30% | 3.65× | −6.3% |
-| **Risk-Parity** | 4.93% | 2.23% | 1.92 | −8.2% | 2.01% | 2.46× | −7.7% |
-| **Max-RoC** | 4.39% | 2.91% | 1.57 | −15.0% | 1.04% | 4.24× | −8.4% |
-| **Capital-Budgeted** | 5.88% | 3.47% | 1.59 | −15.3% | 3.55% | 1.66× | −12.1% |
+| Portfolio | Return | Vol | Sharpe | Capital | RoC | Worst stress |
+|---|---|---|---|---|---|---|
+| **Baseline** | 5.1% | 3.3% | 1.75 | 2.5% | 2.0× | −11.3% |
+| **Max-Sharpe** | 5.1% | 1.7% | 2.15 | 2.1% | 2.4× | −6.2% |
+| **Min-Variance** | 4.7% | 1.6% | 1.97 | 1.3% | 3.6× | −6.3% |
+| **Robust** | 5.1% | 1.7% | 2.14 | 2.0% | — | −6.2% |
+| **ML-Forecast** | 5.2% | 1.8% | 2.14 | 2.6% | — | −6.7% |
+| **Pareto-Balanced** | 5.1% | 2.1% | — | 1.7% | — | −7.8% |
 
-*No single column picks the winner — that is the point. The choice depends on which constraint is binding for the business that year.*
-
-## What it means
-
-- The **current baseline is leaving efficiency on the table**: the same return is available at materially lower risk and capital. The honest caveat is implementation cost — Max-Sharpe is ~67% turnover from today's book, so it is a direction to phase toward, not an overnight trade.
-- **Capital efficiency and earnings stability should be explicit objectives**, not by-products of a vol-based optimisation. When they are, the recommended book changes.
-- The biggest *repeatable* edge is **selection within structured credit**, not a top-level reallocation — which fits an insurer whose strategic allocation is largely fixed.
+*No single column picks the winner — that is the point. The choice depends on which constraint is binding for the business that period.*
 
 ## Recommended next steps (priority order)
 
-1. **Make capital and earnings-stability hard objectives** in the optimiser (not just the capital-aware variants), and search for Pareto improvements over the current book.
-2. **Build structured credit out granularly** — CLO tranches by rating/vintage, US vs EU, ABS/RMBS/CMBS — on real index data. Highest-conviction, strategically aligned.
-3. **Model the dynamic duration "glide path"** — add duration early in the plan year to protect the earnings target, wind it down toward year-end (the CFO lever from the brief). This is the novel, high-value piece nothing yet captures.
-4. **Deepen the capital model** toward full LAGIC (rate stress net of liabilities, insurance/operational risk, prescribed correlations, concentration add-ons).
-5. **Wire in the scaffolded optimisers** — Black-Litterman, robust, then ML return forecasts — behind the same comparison ("don't get stuck in one way of thinking").
-6. **Swap in real data** — Bloomberg/ICE feeds for returns and observable factor series; the framework is built for a one-CSV + config change.
+1. **Get real data flowing** — supply an FMP key or run where Yahoo/FMP are reachable (the adapter and ticker map are built); then re-baseline on the actual QBE disclosed allocation.
+2. **Operationalise the glide path** — make it path-dependent (cut duration once the plan is banked) and drive it off the real P&L-book duration and liability profile. Highest novel value.
+3. **Build structured credit granularly on real index series** — the tickers are mapped; model the senior/mezz capital cliff explicitly.
+4. **Make capital + earnings-stability standing constraints** in every optimiser and routinely search for the cheapest *implementable* Pareto improvement over the live book.
+5. **Deepen the capital model** to the prescribed standard (real liability cash-flows for the rate module, counterparty/reinsurance risk).
+6. **Extend the philosophy set** — regime-switching and richer ML forecasters behind the same comparison.
 
 ## Caveats
 
-All figures are on **transparent dummy data** (a factor model with embedded GFC/COVID/2022 episodes), so they are illustrative, not forecasts — realised returns inherit a one-off rate-decline tailwind. The LAGIC module is a simplified, educational asset-risk charge, not the legal standard. The value here is the **framework and the relative comparisons**; the absolute numbers refresh the moment real data is dropped in.
+Where real data is unavailable the figures are on a **transparent synthetic factor model** (with embedded GFC/COVID/2022 episodes) — illustrative, not forecasts; the report banner says which basis was used. The LAGIC and glide-path models are simplified and educational. The value is the **framework and the relative comparisons**; absolute numbers refresh the moment real data is connected.

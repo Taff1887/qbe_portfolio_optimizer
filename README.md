@@ -38,7 +38,10 @@ The lab builds several candidate portfolios from independent construction philos
 | **Maximum diversification** | `construction.max_diversification` | Maximise the diversification ratio (weighted-avg asset vol / portfolio vol). |
 | **Max return-on-capital** | `optimizer.max_return_on_capital` | Most return per unit of regulatory capital. |
 | **Capital-budgeted** | `optimizer.max_return_capital_budget` | Most return at a *fixed* capital charge. |
-| **Black-Litterman / Robust** | `construction.black_litterman`, `construction.robust_optimizer` | Roadmap **placeholders** — documented scaffolds, not yet wired in. |
+| **Black-Litterman** | `construction.black_litterman` | Equilibrium returns (reverse-optimised from the book) blended with config views. |
+| **Robust** | `construction.robust_optimizer` | Resampled (Michaud) max-Sharpe — stable to estimation error. |
+| **ML-Forecast** | `construction.ml_forecast` | Expected returns from a pooled ridge on momentum / reversal / carry / vol. |
+| **Min-EarningsVol / Pareto-Balanced** | `optimizer`, `multi_objective` | Minimise earnings (P&L) volatility; and the book that dominates the baseline on every objective. |
 
 Risk parity and maximum diversification are solved under the **same** insurer constraints as mean-variance (min core fixed income, currency buckets, per-asset caps), so the comparison is like-for-like; equal weight is the deliberately unconstrained naive benchmark. Every philosophy is also run through **every stress scenario** (the stress grid) and capital/earnings/duration lenses below.
 
@@ -93,6 +96,10 @@ qbe_portfolio_optimizer/
     lagic_capital.py     # lens 5: LAGIC-style capital
     risk_attribution.py  # extra: risk budgeting, diversification, marginal efficiency
     factor_analysis.py   # lens 7: through-time return drivers (factor betas, attribution, rolling)
+    multi_objective.py   # Pareto search: books that dominate the baseline on every objective
+    glide_path.py        # dynamic duration glide path (through-time earnings protection)
+    structured_credit.py # granular structured-credit deep-dive (same-risk + capital-efficient)
+    data_sources.py      # real-data ingestion (FMP / Yahoo) -> returns.csv
     diagnostics.py       # extra: liquidity, concentration, rating, surplus, historical stress
     intra_asset.py       # extra: within-asset-class diversification (incl. structured-credit deep-dive)
     earnings_risk.py     # extra: earnings-at-risk (block-bootstrap plan-year P&L tail)
@@ -128,11 +135,21 @@ This will: generate dummy data (if `data/processed/returns.csv` is missing), bui
 
 **`outputs/report.md`** — the full report: Part A compares construction philosophies; Part B applies the evaluation lenses. **`outputs/summary_report.md`** — a one-page narrative read.
 
-## Replacing the dummy data with real data
+## Using real data
+
+The framework prefers **real market data** out of the box: `config.yaml` sets `data.source: real`, and `src/data_sources.py` fetches monthly total returns from a real provider into `data/processed/returns.csv`.
+
+- **Provider** — set `market_data.provider` to `fmp` (needs `FMP_API_KEY` in the environment) or `yahoo` (uses `yfinance`). `market_data.tickers` maps each universe asset to a liquid ETF/index proxy; refresh with `python src/data_sources.py --provider fmp`.
+- **Fallback** — if the fetch is unavailable (no key, or the environment's network policy blocks the data host), the pipeline falls back to the transparent synthetic factor model and **clearly flags the report as synthetic** (a provenance banner at the top of `outputs/report.md`). It switches to real data automatically once a provider is reachable.
+- **Network** — market-data hosts must be permitted by the environment. In a locked-down sandbox they may be blocked; run locally or in an environment whose network policy allows Yahoo/FMP.
+
+To run on a fully synthetic basis instead, set `data.source: synthetic`.
+
+## Replacing with your own data / the real QBE book
 
 The framework is built so this is a config + one-CSV change:
 
-1. **Returns** — replace `data/processed/returns.csv` with a real monthly total-return history (rows = dates, columns = the asset names in `config.yaml`). Sources later: Bloomberg / ICE indices, fund returns, or returns implied from the annual report.
+1. **Returns** — drop a real monthly total-return history into `data/processed/returns.csv` (rows = dates, columns = the asset names in `config.yaml`), or point `market_data.tickers` at the right proxies. Sources: Bloomberg / ICE indices, fund returns, or returns implied from the annual report.
 2. **Static assumptions** — edit `config.yaml`: each asset's `yield`, `duration`, `spread_duration`, `rating`, `currency`, `accounting`, `capital_category`, `liquidity`, and `baseline_weight`. These are exactly the fields you would lift from index factsheets, the investment supplement of the annual report, or a risk system.
 3. **Liability durations** and **capital factors** — set `currencies[*].liability_duration` from the actuarial liability profile and `lagic.stress_factors` from the current prudential standard.
 
@@ -146,18 +163,23 @@ No code changes are required — every module reads from config and `returns.csv
 - **Stress impacts** are first-order (duration/beta) approximations — no convexity.
 - **Liabilities** are stylised: assumed backed ~1:1 by the P&L asset book, with durations from config, to make the ALM and accounting points concrete.
 
+## Recently added (this build)
+
+- **Real-data ingestion** (`data_sources.py`, FMP/Yahoo) with provenance and synthetic fallback.
+- **Black-Litterman, robust (Michaud) and ML-forecast** optimisers — now live in the comparison (no longer placeholders).
+- **Multi-objective Pareto search** (`multi_objective.py`) — books that dominate the current baseline on every objective; capital and earnings-stability as hard constraints.
+- **Dynamic duration glide path** (`glide_path.py`) — through-time earnings protection.
+- **Fuller LAGIC** — rate-risk net of liabilities, insurance + operational risk, module aggregation, concentration add-on.
+- **Granular structured-credit deep-dive** (`structured_credit.py`) — same-risk and capital-efficient tranche mixes.
+
 ## Future enhancements
 
-- Real data adapters (Bloomberg / ICE / annual-report parsers) behind `data_loader.py`.
-- A fuller LAGIC build: insurance + operational risk, prescribed correlation matrix, asset concentration and counterparty grades.
-- Liability cash-flow model (key-rate durations, not just effective duration) and surplus-at-risk.
-- Stochastic earnings simulation (Monte Carlo paths) and Conditional Tail Expectation on annual earnings.
-- **Black-Litterman** and **robust optimisation** — currently documented placeholders in `construction.py`; the design notes are in the docstrings, ready to be wired into the same comparison.
-- Further philosophies behind the same interface: ML expected-return forecasts, regime switching, Bayesian / multi-objective optimisation.
-- **Granular structured-credit build** — the within-class deep-dive flags structured credit as the standout same-risk opportunity; a fuller model (CLO tranches by rating and vintage, US vs EU, ABS/RMBS/CMBS sub-types) is the natural next step.
-- **Dynamic / through-time duration management** — a duration "glide path" that is built up early in the plan year to protect the earnings target and wound down toward year-end (the CFO example in the brief).
-- Real data adapters (Bloomberg / ICE) feeding both returns and observable factor series.
-- New-money / turnover and transaction-cost-aware rebalancing.
+- Liability cash-flow model (key-rate durations, not just effective duration) and surplus-at-risk; real liability profile behind the rate-capital module.
+- Stochastic earnings simulation (Monte Carlo paths) and CTE on annual earnings; **path-dependent** glide path (cut duration once the plan is banked).
+- Regime-switching and Bayesian / fuller ML forecasters behind the same comparison interface.
+- Real CLO/ABS/RMBS/CMBS index series feeding the structured-credit module (tickers already mapped); vintage and manager dimensions.
+- Observable factor series (real data) for the factor-attribution lens.
+- New-money / turnover and transaction-cost-aware rebalancing; choose the cheapest *implementable* Pareto improvement.
 
 ---
 

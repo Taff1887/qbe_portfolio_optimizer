@@ -996,8 +996,8 @@ def write_full_report(results: dict) -> None:
             means="The rate exposure of the *remaining* year shrinks as the year runs off, so the duration needed to "
                   "protect it declines too - a natural **glide path**. A static duration over-hedges late in the year "
                   "(carrying rate risk on earnings already banked); too little under-hedges throughout.",
-            how="Stylised 12-month simulation: monthly earnings = carry - (d_t - h_t)·dr_t + non-rate noise, where the "
-                "hedge target h_t = L·(months remaining)/12. Rate paths are block-bootstrapped from history (demeaned, so "
+            how="Stylised 12-month simulation: monthly earnings = carry - (d_t - h_t) x dr_t + non-rate noise, where the "
+                "hedge target h_t = L x (months remaining)/12. Rate paths are block-bootstrapped from history (demeaned, so "
                 "duration is a pure risk lever); the static level and the glide start are each optimised to minimise the "
                 "plan-miss probability under common random numbers.",
             found=f"The optimised **glide path cuts earnings volatility to {glide_row['earnings_vol']:.2%}** (vs "
