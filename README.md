@@ -163,6 +163,15 @@ No code changes are required — every module reads from config and `returns.csv
 - **Stress impacts** are first-order (duration/beta) approximations — no convexity.
 - **Liabilities** are stylised: assumed backed ~1:1 by the P&L asset book, with durations from config, to make the ALM and accounting points concrete.
 
+## Tests
+
+A `pytest` suite in `tests/` covers the metrics, portfolio invariants, optimiser feasibility (every construction satisfies the insurer constraints), the capital/earnings/Pareto/stress/glide/regime lenses and the real-data transforms — it runs on deterministic synthetic data, no network needed.
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
 ## Recently added (this build)
 
 - **Real-data ingestion** (`data_sources.py`, FMP/Yahoo) with provenance and synthetic fallback.

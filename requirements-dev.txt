@@ -1,0 +1,4 @@
+# Development / test dependencies (runtime deps are in requirements.txt).
+-r requirements.txt
+pytest>=8.0
+yfinance>=0.2      # optional: real-data provider (Yahoo) for src/data_sources.py
