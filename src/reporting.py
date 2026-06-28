@@ -514,7 +514,8 @@ def write_full_report(results: dict) -> None:
     fa = results.get("factor_analysis")
     worst_s = stress["total_impact"].idxmin()
     philosophies = [n for n in ["Equal-Weight", "Max-Sharpe", "Min-Variance",
-                                "Risk-Parity", "Max-Diversification"] if n in pf]
+                                "Risk-Parity", "Max-Diversification", "Black-Litterman",
+                                "Robust", "ML-Forecast"] if n in pf]
 
     def img(name, cap):
         return f"![{cap}](charts/{name}.png)\n\n*{cap}*\n"
@@ -576,10 +577,12 @@ def write_full_report(results: dict) -> None:
              "- **Minimum variance** - lowest achievable volatility.\n"
              "- **Risk parity** - every asset contributes an equal share of portfolio risk.\n"
              "- **Maximum diversification** - maximises the diversification ratio (weighted-avg asset vol / portfolio vol).\n"
-             "- **Capital-aware (Max-RoC, Capital-Budgeted)** - optimise return per unit of, or subject to, regulatory capital.\n"
-             "- **Baseline / Risk 20%** - the insurer's strategic book and a risk-scaled scenario for reference.\n"
-             "- _Roadmap placeholders_: **Black-Litterman** and **robust optimisation** are scaffolded in "
-             "`src/construction.py` (documented, not yet wired into the comparison).\n")
+             "- **Black-Litterman** - equilibrium returns (reverse-optimised from the book) blended with explicit views.\n"
+             "- **Robust** - resampled (Michaud) max-Sharpe, stable to estimation error.\n"
+             "- **ML-Forecast** - expected returns from a pooled ridge on momentum / reversal / carry / vol signals.\n"
+             "- **Capital-aware (Max-RoC, Capital-Budgeted, Min-EarningsVol)** - optimise return per unit of, or subject to, capital / earnings stability.\n"
+             "- **Pareto-Balanced** - the best book that dominates the baseline on every objective (see A3).\n"
+             "- **Baseline / Risk 20%** - the insurer's strategic book and a risk-scaled scenario for reference.\n")
     m.append(story(
         why="Every philosophy encodes a different *belief* about what is knowable. Mean-variance trusts the return "
             "forecast; minimum variance and risk parity distrust it and lean only on the covariance; equal weight "
@@ -940,7 +943,8 @@ def generate_all(results: dict) -> None:
 
     # construction philosophies shown side by side (Lens 1)
     philosophies = [n for n in ["Equal-Weight", "Max-Sharpe", "Min-Variance",
-                                "Risk-Parity", "Max-Diversification"] if n in portfolios]
+                                "Risk-Parity", "Max-Diversification", "Black-Litterman",
+                                "Robust", "ML-Forecast"] if n in portfolios]
 
     # charts
     frontier_points = {"Baseline": base}

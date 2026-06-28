@@ -46,6 +46,10 @@ def build_results(regenerate: bool = False) -> dict:
         "Min-Variance": optimizer.min_variance(market, config),
         "Risk-Parity": construction.risk_parity(market, config),
         "Max-Diversification": construction.max_diversification(market, config),
+        # views / robust / ML-driven construction philosophies
+        "Black-Litterman": construction.black_litterman(market, config),
+        "Robust": construction.robust_optimizer(market, config),
+        "ML-Forecast": construction.ml_forecast(market, config),
         # capital-aware optimisers
         "Max-RoC": optimizer.max_return_on_capital(market, config),
         # most return achievable at the SAME capital charge as the baseline

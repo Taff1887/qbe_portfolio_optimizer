@@ -92,6 +92,23 @@ optimiser:
   # weight to zero in any currency not listed here.
   risk_asset_currencies: ["AUD", "USD", "GBP", "EUR"]
 
+# Black-Litterman: equilibrium returns reverse-optimised from the baseline, then
+# blended with the views below (P/Q/confidence). Edit or empty `views` to taste.
+black_litterman:
+  tau: 0.05
+  views:
+    - { assets: { "High Yield": 1, "IG Credit": -1 }, q: 0.020, confidence: 0.50 }  # HY beats IG by ~2%
+    - { assets: { "Gold": 1 }, q: 0.045, confidence: 0.40 }                          # gold ~4.5% absolute
+
+# Robust (resampled / Michaud) optimiser.
+robust:
+  n_resample: 30
+
+# ML expected-return forecaster (pooled ridge on momentum/reversal/carry/vol).
+ml:
+  ridge_lambda: 10.0
+  blend: 0.5            # weight on the ML forecast vs the config CMA
+
 # -----------------------------------------------------------------------------
 # Sub-sleeve universe for the WITHIN-asset-class lens (intra_asset.py). The top-
 # level SAA is fixed; here we ask whether a better *mix inside each class* (vs the

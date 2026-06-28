@@ -35,6 +35,22 @@ from optimizer import _build, _inputs, _solve
 from portfolio import Portfolio
 
 
+def _max_sharpe_given_mu(market: MarketData, config: dict, mu_vec, name: str) -> Portfolio:
+    """Constrained max-Sharpe using a *supplied* expected-return vector (the shared
+    engine for Black-Litterman, robust and ML, which differ only in how mu is formed)."""
+    _, cov = _inputs(market)
+    S = cov.to_numpy()
+    m = np.asarray(mu_vec, dtype=float)
+    rf = config["portfolio"].get("risk_free", 0.0)
+
+    def neg_sharpe(w):
+        vol = np.sqrt(max(w @ S @ w, 1e-12))
+        return -((m @ w) - rf) / vol
+
+    w = _solve(neg_sharpe, market, config)
+    return Portfolio(w, market, name)
+
+
 def equal_weight(market: MarketData, config: dict) -> Portfolio:
     """Naive 1/N portfolio across the whole universe (no mandate constraints).
 
@@ -98,27 +114,118 @@ def max_diversification(market: MarketData, config: dict) -> Portfolio:
     return Portfolio(w, market, "Max-Diversification")
 
 
-# --------------------------------------------------------------- placeholders
+# ------------------------------------------------- views / robust / ML-driven
 def black_litterman(market: MarketData, config: dict) -> Portfolio:
-    """Black-Litterman allocation - ROADMAP PLACEHOLDER.
+    """Black-Litterman: blend equilibrium returns with explicit views.
 
-    Intended design: recover equilibrium (reverse-optimised) expected returns from
-    the baseline/market weights and the covariance, then Bayesian-blend them with
-    explicit investor views (P, Q, Omega from config) before running the
-    constrained MVO in `optimizer.py`. Not yet implemented.
+    Reverse-optimise **equilibrium** implied returns from the baseline (market)
+    weights and covariance, Pi = delta * Sigma * w_mkt, then Bayesian-update them
+    with any views in `config['black_litterman']['views']` before running the
+    constrained max-Sharpe. With no views the result is the equilibrium portfolio
+    (a useful anchor in its own right).
     """
-    raise NotImplementedError(
-        "black_litterman is a roadmap placeholder - see docstring for the intended design."
-    )
+    _, cov = _inputs(market)
+    S = cov.to_numpy()
+    names = list(market.meta.index)
+    w_mkt = market.baseline_weights.reindex(names).fillna(0.0).to_numpy()
+    rf = config["portfolio"].get("risk_free", 0.0)
+    bl = config.get("black_litterman", {})
+    tau = bl.get("tau", 0.05)
+
+    mu_cma = market.meta["exp_return"].to_numpy()
+    base_excess = float(mu_cma @ w_mkt) - rf
+    base_var = float(w_mkt @ S @ w_mkt)
+    delta = bl.get("risk_aversion") or max(base_excess / base_var, 1.0)   # implied risk aversion
+    pi = delta * S @ w_mkt                                                # equilibrium excess returns
+
+    views = bl.get("views", [])
+    if views:
+        P, Q, conf = [], [], []
+        for v in views:
+            row = np.zeros(len(names))
+            for nm, c in v["assets"].items():
+                if nm in names:
+                    row[names.index(nm)] = c
+            P.append(row); Q.append(v["q"]); conf.append(v.get("confidence", 0.5))
+        P, Q = np.array(P), np.array(Q)
+        tauS = tau * S
+        # Omega from view confidence: higher confidence -> tighter (smaller) variance.
+        omega = np.diag([(1.0 / max(c, 1e-3) - 1.0) * float(P[i] @ tauS @ P[i]) + 1e-10
+                         for i, c in enumerate(conf)])
+        A = np.linalg.inv(tauS) + P.T @ np.linalg.inv(omega) @ P
+        b = np.linalg.inv(tauS) @ pi + P.T @ np.linalg.inv(omega) @ Q
+        mu_excess = np.linalg.solve(A, b)
+    else:
+        mu_excess = pi
+
+    return _max_sharpe_given_mu(market, config, mu_excess + rf, "Black-Litterman")
 
 
 def robust_optimizer(market: MarketData, config: dict) -> Portfolio:
-    """Robust (uncertainty-aware) optimisation - ROADMAP PLACEHOLDER.
+    """Robust optimisation by **resampling** (Michaud-style).
 
-    Intended design: optimise the worst case over an uncertainty set around the
-    expected-return estimates (e.g. an ellipsoidal/box set, or resampled-frontier
-    averaging) so the solution is stable to estimation error. Not yet implemented.
+    Expected returns are uncertain. We draw many plausible mean vectors from the
+    sampling distribution of the estimate, mu ~ N(mu_hat, Sigma / n_years), solve a
+    constrained max-Sharpe for each, and **average the weights**. The averaged book
+    is stable to estimation error - it does not bet the farm on one noisy forecast.
     """
-    raise NotImplementedError(
-        "robust_optimizer is a roadmap placeholder - see docstring for the intended design."
-    )
+    mu, cov = _inputs(market)
+    m, S = mu.to_numpy(), cov.to_numpy()
+    rc = config.get("robust", {})
+    n_resample = rc.get("n_resample", 30)
+    n_years = max(len(market.returns) / 12.0, 1.0)
+    seed = config["meta"].get("random_seed", 7)
+    rng = np.random.default_rng(seed)
+
+    acc = np.zeros(len(m))
+    for _ in range(int(n_resample)):
+        mu_s = rng.multivariate_normal(m, S / n_years)
+        acc += _max_sharpe_given_mu(market, config, mu_s, "robust-sample").weights.to_numpy()
+    w = acc / acc.sum() if acc.sum() > 0 else market.baseline_weights.to_numpy()
+    return Portfolio(pd.Series(w, index=market.meta.index), market, "Robust")
+
+
+def ml_forecast(market: MarketData, config: dict) -> Portfolio:
+    """ML-driven expected returns (transparent, illustrative).
+
+    A pooled ridge regression predicts next-month return from four standard,
+    leakage-safe signals - 12-1 momentum, 1-month reversal, carry (yield) and
+    trailing volatility. The latest-month forecast is annualised and blended with
+    the config capital-market assumptions (to stabilise a noisy single forecast),
+    then fed to the constrained max-Sharpe. Stands in for richer ML forecasters.
+    """
+    meta = market.meta
+    R = market.returns[meta.index]
+    yld = (meta["yield"] / 12.0)
+    mom = R.rolling(12).mean().shift(1)     # 12-1 momentum (shifted: no lookahead)
+    rev = R.shift(1)                        # last month (reversal)
+    vol = R.rolling(12).std().shift(1)
+
+    X, y = [], []
+    for t in range(13, len(R) - 1):
+        for a in meta.index:
+            row = [mom.iloc[t][a], rev.iloc[t][a], float(yld[a]), vol.iloc[t][a]]
+            if not np.any(np.isnan(row)):
+                X.append(row); y.append(R.iloc[t + 1][a])
+    mlc = config.get("ml", {})
+    mu_cma = meta["exp_return"].to_numpy()
+    if len(X) < 50:                         # too little history - fall back to CMA
+        return _max_sharpe_given_mu(market, config, mu_cma, "ML-Forecast")
+
+    X, y = np.array(X), np.array(y)
+    Xm, Xs = X.mean(0), X.std(0) + 1e-9
+    Xz = (X - Xm) / Xs
+    lam = mlc.get("ridge_lambda", 10.0)
+    beta = np.linalg.solve(Xz.T @ Xz + lam * np.eye(Xz.shape[1]), Xz.T @ (y - y.mean()))
+
+    preds = []
+    for a in meta.index:
+        row = np.array([mom.iloc[-1][a], rev.iloc[-1][a], float(yld[a]), vol.iloc[-1][a]])
+        if np.any(np.isnan(row)):
+            preds.append(meta.loc[a, "exp_return"])
+        else:
+            preds.append((y.mean() + ((row - Xm) / Xs) @ beta) * 12.0)   # annualise
+    mu_ml = np.array(preds)
+    blend = mlc.get("blend", 0.5)
+    mu_final = blend * mu_ml + (1.0 - blend) * mu_cma
+    return _max_sharpe_given_mu(market, config, mu_final, "ML-Forecast")

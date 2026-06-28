@@ -26,9 +26,12 @@ Each optimiser is independent and produces a `Portfolio` scored on the same metr
 - **Minimum variance** - lowest achievable volatility.
 - **Risk parity** - every asset contributes an equal share of portfolio risk.
 - **Maximum diversification** - maximises the diversification ratio (weighted-avg asset vol / portfolio vol).
-- **Capital-aware (Max-RoC, Capital-Budgeted)** - optimise return per unit of, or subject to, regulatory capital.
+- **Black-Litterman** - equilibrium returns (reverse-optimised from the book) blended with explicit views.
+- **Robust** - resampled (Michaud) max-Sharpe, stable to estimation error.
+- **ML-Forecast** - expected returns from a pooled ridge on momentum / reversal / carry / vol signals.
+- **Capital-aware (Max-RoC, Capital-Budgeted, Min-EarningsVol)** - optimise return per unit of, or subject to, capital / earnings stability.
+- **Pareto-Balanced** - the best book that dominates the baseline on every objective (see A3).
 - **Baseline / Risk 20%** - the insurer's strategic book and a risk-scaled scenario for reference.
-- _Roadmap placeholders_: **Black-Litterman** and **robust optimisation** are scaffolded in `src/construction.py` (documented, not yet wired into the comparison).
 
 **Why this lens.** Every philosophy encodes a different *belief* about what is knowable. Mean-variance trusts the return forecast; minimum variance and risk parity distrust it and lean only on the covariance; equal weight distrusts everything. Building them side by side stops us over-fitting to one worldview - exactly the 'don't get stuck in one way of thinking' instruction.
 
@@ -48,6 +51,9 @@ Every portfolio, every headline metric (the full set, including the retained con
 | Min-Variance | 0.0472 | 0.0157 | 1.9688 | 3.6572 | -0.0513 | -0.0033 | -0.0072 | 2.0662 | 0.0129 | -0.0630 | 7.8050 | 2.1312 | 0.6689 |
 | Risk-Parity | 0.0493 | 0.0223 | 1.9177 | 3.8529 | -0.0823 | -0.0063 | -0.0095 | 2.6346 | 0.0201 | -0.0773 | 7.4820 | 2.1122 | 0.4164 |
 | Max-Diversification | 0.0486 | 0.0188 | 1.8748 | 3.8693 | -0.0591 | -0.0048 | -0.0071 | 2.0196 | 0.0154 | -0.0623 | 7.8067 | 2.4048 | 0.5917 |
+| Black-Litterman | 0.0507 | 0.0322 | 1.7621 | 3.5746 | -0.1527 | -0.0083 | -0.0145 | 3.9480 | 0.0262 | -0.1069 | 7.5195 | 1.9290 | 0.0703 |
+| Robust | 0.0506 | 0.0170 | 2.1410 | 4.0522 | -0.0463 | -0.0035 | -0.0079 | 1.9225 | 0.0203 | -0.0625 | 7.3452 | 2.1492 | 0.6337 |
+| ML-Forecast | 0.0523 | 0.0183 | 2.1448 | 4.1305 | -0.0472 | -0.0030 | -0.0084 | 1.8464 | 0.0260 | -0.0670 | 7.0318 | 1.9701 | 0.6978 |
 | Max-RoC | 0.0439 | 0.0291 | 1.5693 | 3.0001 | -0.1499 | -0.0081 | -0.0133 | 3.8932 | 0.0103 | -0.0844 | 9.0806 | 1.4395 | 0.5530 |
 | Capital-Budgeted | 0.0588 | 0.0347 | 1.5919 | 2.5860 | -0.1531 | -0.0081 | -0.0212 | 2.8848 | 0.0355 | -0.1211 | 6.2957 | 1.6213 | 0.6914 |
 | Risk 20% | 0.0521 | 0.0337 | 1.7263 | 3.4509 | -0.1584 | -0.0102 | -0.0154 | 4.0426 | 0.0299 | -0.1122 | 7.3569 | 1.8378 | 0.0416 |
