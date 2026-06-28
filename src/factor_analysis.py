@@ -39,11 +39,20 @@ FACTOR_LABELS = {
 }
 
 
-def load_factors(config: dict) -> pd.DataFrame:
-    """Load the macro/market factor series (regenerating dummy data if needed)."""
+def load_factors(config: dict) -> pd.DataFrame | None:
+    """Load the macro/market factor series.
+
+    For synthetic data these are the generative factors. For real data, observable
+    factor series are not yet wired in, so this returns None (the lens is skipped)
+    rather than fabricating factors - on real data, supply a factors.csv of
+    observable market series (rates index change, IG OAS, equity index, ...).
+    """
     path = DATA_PROCESSED / "factors.csv"
     if not path.exists():
-        write_dummy_data(config)
+        if config.get("data", {}).get("source") == "synthetic":
+            write_dummy_data(config)
+        else:
+            return None
     df = pd.read_csv(path, index_col=0, parse_dates=True)
     df.index.name = "date"
     return df
@@ -108,8 +117,10 @@ def rolling_betas(portfolio: Portfolio, factors: pd.DataFrame, cols: list[str],
     return out
 
 
-def run_factor_analysis(portfolio: Portfolio, config: dict) -> dict:
+def run_factor_analysis(portfolio: Portfolio, config: dict) -> dict | None:
     factors = load_factors(config)
+    if factors is None:
+        return None
     reg = factor_regression(portfolio, factors)
     roll = rolling_betas(portfolio, factors, reg["cols"],
                          window=config["optimiser"].get("factor_window", 36))

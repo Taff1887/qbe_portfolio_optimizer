@@ -11,7 +11,55 @@ meta:
   base_currency: AUD
   start_date: "2000-01-31"
   end_date: "2024-12-31"
-  random_seed: 7              # makes the dummy data reproducible
+  random_seed: 7              # seed for the SYNTHETIC fallback only
+
+# -----------------------------------------------------------------------------
+# Data provenance. `source: real` fetches monthly total returns from a real
+# provider (see market_data) into data/processed/returns.csv; `synthetic` uses
+# the transparent factor-model generator (dummy_data.py) for offline development.
+# With real selected, the pipeline falls back to synthetic only if the fetch
+# fails AND allow_synthetic_fallback is true (it flags the report as synthetic).
+# -----------------------------------------------------------------------------
+data:
+  source: real                 # real | synthetic
+  allow_synthetic_fallback: true
+
+# Real market-data mapping. Each universe asset maps to a liquid, investable
+# proxy (ETF/index). Some securitised and private sleeves have no clean long-
+# history listed proxy - those are best-available and flagged in proxy_notes;
+# swap for a real index series when a Bloomberg/ICE feed is available.
+market_data:
+  provider: fmp                # fmp | yahoo
+  fmp_key_env: FMP_API_KEY     # environment variable holding the FMP key
+  start: "2000-01-31"
+  align: common                # common (truncate to shared window) | pairwise
+  tickers:
+    "AUD Sovereign":    "AGVT.AX"   # BetaShares AUD Government Bond
+    "USD Sovereign":    "IEF"       # iShares 7-10y Treasury
+    "GBP Sovereign":    "IGLT.L"    # iShares Core UK Gilts
+    "EUR Sovereign":    "SEGA.L"    # iShares Core EUR Govt Bond
+    "NZD Sovereign":    ""          # no clean ETF proxy - supply an index series
+    "CAD Sovereign":    "XGB.TO"    # iShares Canadian Government Bond
+    "IG Credit":        "LQD"       # iShares iBoxx IG Corporate
+    "Corporate Credit": "CRED.AX"   # BetaShares AUD Investment Grade Corporate
+    "CLO AAA":          "JAAA"      # Janus AAA CLO (short history, from 2020)
+    "ABS":              ""          # no broad ABS ETF - supply an index series
+    "RMBS":             "MBB"       # iShares MBS
+    "CMBS":             "CMBS"      # iShares CMBS
+    "Cash":             "BIL"       # 1-3m T-Bills
+    "High Yield":       "HYG"       # iShares iBoxx HY Corporate
+    "CLO BBB":          "JBBB"      # Janus B-BBB CLO (short history, from 2022)
+    "Private Credit":   "BIZD"      # VanEck BDC Income (listed private-credit proxy)
+    "Infra Debt":       ""          # no clean ETF proxy - supply an index series
+    "Infra Equity":     "IGF"       # iShares Global Infrastructure
+    "Listed Equities":  "ACWI"      # iShares MSCI ACWI
+    "Unlisted Property": "VNQ"      # Vanguard Real Estate (listed proxy for unlisted)
+    "Gold":             "GLD"       # SPDR Gold Shares
+  proxy_notes:
+    "Private Credit": "BDC index is a listed proxy; true private credit is unlisted and smoother."
+    "Unlisted Property": "Listed REIT proxy; unlisted property is appraisal-smoothed (lower measured vol)."
+    "CLO AAA / CLO BBB": "CLO ETFs have short histories (2020/2022); use a longer index for full-period analysis."
+    "NZD Sovereign / ABS / Infra Debt": "No clean liquid ETF; supply a real index series (Bloomberg/ICE) to include."
 
 portfolio:
   risk_asset_target: 0.15     # baseline risk-asset share (core FI = 1 - this)
@@ -188,6 +236,13 @@ lagic:
 #   liquidity       : 1 (illiquid) .. 10 (cash-like)
 #   exp_return,ann_vol: forward assumptions used to GENERATE dummy returns + MVO
 #   baseline_weight : share of the total book in the baseline portfolio
+#
+# BASELINE WEIGHTS approximate QBE's disclosed strategic asset allocation
+# (~85% core fixed income / cash for ALM, ~15% growth/risk assets; currency mix
+# AUD/USD-heavy). They are a realistic stand-in - replace `baseline_weight` with
+# the exact figures from the QBE annual report's investment-portfolio disclosure
+# (asset class x currency) to run on the real book. `data.source: real` then
+# fetches the matching return history.
 # =============================================================================
 assets:
   - { name: "AUD Sovereign",      group: core_fi, currency: AUD, rating: AAA, accounting: "P&L", capital_category: sovereign,         liquidity: 9,  yield: 0.041, duration: 5.0, spread_duration: 0.0, equity_beta: 0.00, property_beta: 0.0, exp_return: 0.041, ann_vol: 0.050, baseline_weight: 0.167 }

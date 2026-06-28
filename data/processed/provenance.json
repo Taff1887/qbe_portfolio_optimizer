@@ -1,0 +1,4 @@
+{
+  "source": "synthetic-fallback",
+  "reason": "RuntimeError: FMP_API_KEY not set in the environment."
+}
