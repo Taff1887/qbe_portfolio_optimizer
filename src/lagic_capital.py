@@ -94,3 +94,62 @@ def run_lagic(portfolio: Portfolio, config: dict) -> dict:
         "return_on_capital": exp_ret / capital_charge if capital_charge > 0 else np.nan,
         "marginal_capital": marginal_capital(portfolio, config, worst_name),
     }
+
+
+# ----------------------------------------------- fuller LAGIC-style aggregation
+def _aggregate_modules(modules: dict, rho: float) -> float:
+    """Combine risk-module charges with a prescribed inter-module correlation:
+    sqrt(m' R m). Captures that the modules do not all peak at once."""
+    v = np.array(list(modules.values()), dtype=float)
+    k = len(v)
+    R = np.full((k, k), rho)
+    np.fill_diagonal(R, 1.0)
+    return float(np.sqrt(max(v @ R @ v, 0.0)))
+
+
+def concentration_addon(portfolio: Portfolio, config: dict) -> float:
+    """Additive charge for credit/risk weight above a prescribed limit (no
+    diversification credit) - the LAGIC asset-concentration idea. Sovereign and
+    cash sleeves are exempt (a large government-bond bucket is not single-name
+    concentration risk)."""
+    lc = config["lagic"]
+    lim = lc.get("concentration_single_limit", 0.10)
+    fac = lc.get("concentration_factor", 0.5)
+    exempt = portfolio.meta["capital_category"].isin(["sovereign", "cash"])
+    w = portfolio.weights[~exempt]
+    excess = (w - lim).clip(lower=0).sum()
+    return float(fac * excess)
+
+
+def lagic_full(portfolio: Portfolio, config: dict, net_duration_gap_years: float) -> dict:
+    """A fuller LAGIC-style capital requirement: the asset risk charge plus an
+    interest-rate charge **net of liabilities**, insurance risk, operational risk
+    and an asset-concentration add-on, aggregated with an inter-module correlation.
+
+    `net_duration_gap_years` is the asset-minus-liability dollar-duration gap (years)
+    from the duration lens, so a well-matched book carries little rate capital.
+    """
+    lc, pc = config["lagic"], config["portfolio"]
+    liab = pc.get("liability_ratio", 0.82)
+    asset = run_lagic(portfolio, config)
+
+    rate_move = lc.get("rate_stress_bps", 200) / 10_000.0
+    modules = {
+        "asset_risk": asset["capital_charge"],
+        "rate_risk_net": abs(net_duration_gap_years) * rate_move,          # net of liabilities
+        "insurance_risk": lc.get("insurance_risk_factor", 0.12) * liab,
+        "operational_risk": lc.get("operational_risk_factor", 0.03)
+            * max(liab, lc.get("premium_ratio", 0.55)),
+    }
+    diversified = _aggregate_modules(modules, lc.get("module_correlation", 0.25))
+    conc = concentration_addon(portfolio, config)
+    total = diversified + conc
+    exp_ret = portfolio.expected_return()
+    return {
+        "modules": modules,
+        "diversified_modules": diversified,
+        "concentration_addon": conc,
+        "total_capital_requirement": total,
+        "return_on_total_capital": exp_ret / total if total > 0 else np.nan,
+        "asset_risk_detail": asset,
+    }

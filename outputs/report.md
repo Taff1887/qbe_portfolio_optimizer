@@ -177,6 +177,18 @@ The same portfolios, now seen through the lenses an insurer is actually governed
 
 **What to study next.** Build toward a fuller LAGIC: add the interest-rate stress computed **net of liabilities** (not just assets), insurance- and operational-risk charges, the prescribed correlation matrix, and asset-concentration / counterparty add-ons. Then make capital a hard constraint in every optimiser, not just the capital-aware ones.
 
+![Figure 7b. Fuller LAGIC-style build: risk modules aggregated (with diversification) to a total capital requirement.](charts/28_capital_modules.png)
+
+*Figure 7b. Fuller LAGIC-style build: risk modules aggregated (with diversification) to a total capital requirement.*
+
+**Why this lens.** The asset risk charge above is only one module. A fuller capital requirement also holds capital for **interest-rate risk net of liabilities**, **insurance risk**, **operational risk** and **asset concentration** - and these do not all peak together, so they aggregate with a diversification credit.
+
+**How it is calculated.** Each module is a prescribed charge: asset risk (worst-of-panel), the net asset-minus-liability duration gap x a prescribed rate move, insurance/operational risk scaled to liabilities/premiums, and an additive single-name concentration add-on. Modules combine via sqrt(m' R m) with a prescribed inter-module correlation.
+
+**What we found.** Modules (% of assets): asset 2.54%, **rate-net-of-liabilities 0.57%** (small - the matched book does its job), insurance 9.84%, operational 2.46%. Diversified across modules that is **11.90%**, plus a 1.93% concentration add-on, for a **total capital requirement of 13.83%** of assets (return on total capital 0.37x).
+
+**What to study next.** Replace the illustrative factors with the prescribed standard, add a real liability cash-flow model for the rate module, and counterparty-grade and reinsurance-recovery risk. The key structural point already holds: a duration-matched book keeps the rate module small.
+
 ### B3. Lens 3/6 - Through-time earnings & carry
 
 **Why this lens.** An insurer is judged on whether it makes its **annual earnings plan**, not on a point-in-time Sharpe. That is the core point-in-time-vs-through-time tension: a portfolio can look efficient instantaneously yet miss the plan often because its return is volatile mark-to-market rather than predictable income.

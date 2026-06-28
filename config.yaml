@@ -219,6 +219,18 @@ lagic:
   # Correlation between category stresses for the diversified aggregate charge
   # (reported as a comparator; the binding charge is the worst single scenario).
   cross_correlation: 0.40
+  # Fuller-model parameters: interest-rate charge is on the NET (asset minus
+  # liability) duration position; insurance/operational risk scale with
+  # liabilities/premiums; modules aggregate with module_correlation; an additive
+  # concentration add-on penalises single-name weight above the limit. All
+  # illustrative - replace with the prescribed standard for a real calculation.
+  rate_stress_bps: 200
+  insurance_risk_factor: 0.12       # of liabilities
+  operational_risk_factor: 0.03     # of max(liabilities, premiums)
+  premium_ratio: 0.55               # gross premiums as a share of assets
+  concentration_single_limit: 0.10  # per-asset weight above which capital is added
+  concentration_factor: 0.50
+  module_correlation: 0.25          # inter-risk-module aggregation correlation
   # Scenario panel (LAGIC-style): a panel of 8 prescribed, deterministic scenarios.
   # Each scenario scales the prescribed stress per category. The asset risk charge
   # is the WORST of the 8 (the binding scenario) - no history needed to compute it.

@@ -76,6 +76,8 @@ def build_results(regenerate: bool = False) -> dict:
     worst_total = float(stress["total_impact"].min())
     stress_grid = stress_testing.stress_matrix(portfolios, config)
     worst_stress = stress_testing.worst_stress_by_portfolio(portfolios, config)
+    dur = duration_model.run_duration(base, config)
+    lagic_full = lagic_capital.lagic_full(base, config, dur["total_dollar_duration_gap"])
 
     # --- the six core lenses + extra analyses ---
     return {
@@ -89,8 +91,9 @@ def build_results(regenerate: bool = False) -> dict:
         "stress_grid": stress_grid,
         "worst_stress": worst_stress,
         "lagic": {name: lagic_capital.run_lagic(pf, config) for name, pf in portfolios.items()},
+        "lagic_full": lagic_full,
         "earnings": earnings_model.run_earnings(base, config),
-        "duration": duration_model.run_duration(base, config),
+        "duration": dur,
         "duration_example": earnings_model.duration_earnings_example(config),
         "return_capital_budget": optimizer.return_capital_budget_frontier(market, config),
         "risk_attribution": risk_attribution.run_risk_attribution(base, config),

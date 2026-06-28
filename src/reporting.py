@@ -97,6 +97,22 @@ def chart_allocation_comparison(portfolios: dict[str, Portfolio]) -> None:
     save_chart(fig, "02_allocation_comparison")
 
 
+def chart_capital_modules(lf: dict) -> None:
+    """The fuller LAGIC build: risk modules, diversification credit and total."""
+    mods = lf["modules"]
+    labels = list(mods.keys()) + ["diversification", "concentration", "TOTAL"]
+    div_credit = -(sum(mods.values()) - lf["diversified_modules"])
+    vals = list(mods.values()) + [div_credit, lf["concentration_addon"], lf["total_capital_requirement"]]
+    colors = (["#0072B2"] * len(mods)) + ["#2E8B57", "#E69F00", "#C0392B"]
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.bar(range(len(vals)), [v * 100 for v in vals], color=colors)
+    ax.axhline(0, color="#444", lw=0.8)
+    ax.set_xticks(range(len(labels)), labels, rotation=25, ha="right")
+    ax.set_ylabel("Capital (% of assets)")
+    ax.set_title("Fuller LAGIC-style capital: risk modules -> diversified total")
+    save_chart(fig, "28_capital_modules")
+
+
 def chart_stress(stress: pd.DataFrame) -> None:
     fig, ax = plt.subplots(figsize=(11, 6))
     x = np.arange(len(stress.index))
@@ -728,6 +744,29 @@ def write_full_report(results: dict) -> None:
             "insurance- and operational-risk charges, the prescribed correlation matrix, and asset-concentration / "
             "counterparty add-ons. Then make capital a hard constraint in every optimiser, not just the capital-aware ones."))
 
+    lf = results.get("lagic_full")
+    if lf is not None:
+        mods = lf["modules"]
+        m.append(img("28_capital_modules", "Figure 7b. Fuller LAGIC-style build: risk modules aggregated (with "
+                     "diversification) to a total capital requirement."))
+        m.append(story(
+            why="The asset risk charge above is only one module. A fuller capital requirement also holds capital for "
+                "**interest-rate risk net of liabilities**, **insurance risk**, **operational risk** and **asset "
+                "concentration** - and these do not all peak together, so they aggregate with a diversification credit.",
+            how="Each module is a prescribed charge: asset risk (worst-of-panel), the net asset-minus-liability duration "
+                "gap x a prescribed rate move, insurance/operational risk scaled to liabilities/premiums, and an additive "
+                "single-name concentration add-on. Modules combine via sqrt(m' R m) with a prescribed inter-module "
+                "correlation.",
+            found=f"Modules (% of assets): asset {mods['asset_risk']:.2%}, **rate-net-of-liabilities "
+                  f"{mods['rate_risk_net']:.2%}** (small - the matched book does its job), insurance "
+                  f"{mods['insurance_risk']:.2%}, operational {mods['operational_risk']:.2%}. Diversified across modules "
+                  f"that is **{lf['diversified_modules']:.2%}**, plus a {lf['concentration_addon']:.2%} concentration "
+                  f"add-on, for a **total capital requirement of {lf['total_capital_requirement']:.2%}** of assets "
+                  f"(return on total capital {lf['return_on_total_capital']:.2f}x).",
+            nxt="Replace the illustrative factors with the prescribed standard, add a real liability cash-flow model for "
+                "the rate module, and counterparty-grade and reinsurance-recovery risk. The key structural point already "
+                "holds: a duration-matched book keeps the rate module small."))
+
     m.append("### B3. Lens 3/6 - Through-time earnings & carry\n")
     et = results["earnings_risk"]["table"].loc["Baseline"]
     m.append(story(
@@ -994,6 +1033,13 @@ def generate_all(results: dict) -> None:
         save_table(results["pareto"]["table"].round(5), "pareto_search.csv")
     if results.get("glide_path"):
         save_table(results["glide_path"]["table"].round(5), "glide_path.csv")
+    if results.get("lagic_full"):
+        lf = results["lagic_full"]
+        mod = pd.Series(lf["modules"])
+        mod["diversified_modules"] = lf["diversified_modules"]
+        mod["concentration_addon"] = lf["concentration_addon"]
+        mod["total_capital_requirement"] = lf["total_capital_requirement"]
+        save_table(mod.round(5).to_frame("capital"), "lagic_full_modules.csv")
 
     # construction philosophies shown side by side (Lens 1)
     philosophies = [n for n in ["Equal-Weight", "Max-Sharpe", "Min-Variance",
@@ -1035,6 +1081,8 @@ def generate_all(results: dict) -> None:
         chart_pareto(results["pareto"])
     if results.get("glide_path"):
         chart_glide_path(results["glide_path"])
+    if results.get("lagic_full"):
+        chart_capital_modules(results["lagic_full"])
     if results.get("factor_analysis"):
         chart_factor_attribution(results["factor_analysis"]["attribution"])
         chart_rolling_factor_betas(results["factor_analysis"]["rolling_betas"])
