@@ -11,6 +11,10 @@ This report answers one question: **how should an institutional insurance portfo
 
 The single comparison table below is the heart of the lab; everything after it explains the trade-offs it exposes.
 
+The framing follows the way the problem was put to us: there are really **two big lenses**. The first is *mean-variance* - well understood, many ways to do it - which here becomes a whole family of construction philosophies (Part A). The second is everything mean-variance ignores: shocks do not happen in isolation, an insurer is judged on its **annual earnings plan** not a point-in-time Sharpe, and **capital** (not volatility) is usually the binding constraint (Part B). The aim is not a portfolio that is optimal on one axis but one that is **acceptable across all of them** - and, where possible, a change that improves several at once (growing the pie rather than re-slicing it).
+
+**How to read each section below.** Every lens is written to the same five beats so the reasoning is explicit: _Why this lens_ (why it is looked at), _What it means_, _How it is calculated_ (how it was researched and computed), _What we found_ (the result on this book), and _What to study next_.
+
 ## Part A - Portfolio construction philosophies
 
 ### A1. The philosophies
@@ -25,6 +29,12 @@ Each optimiser is independent and produces a `Portfolio` scored on the same metr
 - **Capital-aware (Max-RoC, Capital-Budgeted)** - optimise return per unit of, or subject to, regulatory capital.
 - **Baseline / Risk 20%** - the insurer's strategic book and a risk-scaled scenario for reference.
 - _Roadmap placeholders_: **Black-Litterman** and **robust optimisation** are scaffolded in `src/construction.py` (documented, not yet wired into the comparison).
+
+**Why this lens.** Every philosophy encodes a different *belief* about what is knowable. Mean-variance trusts the return forecast; minimum variance and risk parity distrust it and lean only on the covariance; equal weight distrusts everything. Building them side by side stops us over-fitting to one worldview - exactly the 'don't get stuck in one way of thinking' instruction.
+
+**How it is calculated.** Each optimiser is an independent function in `src/optimizer.py` / `src/construction.py` that returns a `Portfolio`. Forward `exp_return` assumptions drive return; the historical covariance drives risk. Risk parity and maximum diversification are solved (SLSQP) under the *same* mandate constraints as mean-variance so the contest is fair; equal weight is left unconstrained as the naive control.
+
+**What to study next.** Wire in the scaffolded **Black-Litterman** (blend equilibrium with views) and **robust** optimisers, then newer philosophies - ML return forecasts, regime-switching, Bayesian / multi-objective - all behind the same comparison so they are judged on identical metrics.
 
 ### A2. Side-by-side comparison
 
@@ -52,7 +62,11 @@ _VaR / CVaR are historical monthly 95% figures (signed; negative = loss); stress
 
 *Figure 2. Constrained efficient frontier with each philosophy plotted.*
 
-Within the insurer constraints the **Max-Sharpe** portfolio reaches expected return **5.08%** at volatility **1.70%** (Sharpe 2.15), versus the baseline at **5.09%** / **3.28%**. **Min-Variance** and **Risk-Parity** trade return for stability; **Equal-Weight**, unconstrained, takes the most risk and the largest turnover to implement. No single portfolio wins on every column - which is the point.
+**What it means.** Read each row as a portfolio and each column as a lens. The right-most columns (capital charge, stress loss, turnover) are where philosophies that look identical on return/volatility separate - which is the whole argument for not optimising a single number.
+
+**What we found.** Within the insurer constraints the **Max-Sharpe** book reaches expected return **5.08%** at volatility **1.70%** (Sharpe 2.15) versus the baseline at **5.09%** / **3.28%**; **Min-Variance** and **Risk-Parity** trade return for stability, while **Equal-Weight** takes the most risk and the largest turnover to implement. No single portfolio wins every column.
+
+**What to study next.** Add the objective that is actually binding for the business each period (capital, earnings stability) as a constraint and search for **Pareto improvements** - moves that help one lens without hurting the others - rather than a single 'optimal' point.
 
 ![Figure 3. Allocation by capital category across philosophies.](charts/02_allocation_comparison.png)
 
@@ -87,7 +101,15 @@ The same portfolios, now seen through the lenses an insurer is actually governed
 | Combined recession | -0.0644 | -0.0295 | -0.0349 |
 | Inflation / rates up | -0.1126 | -0.0987 | -0.0139 |
 
-The worst instantaneous scenario for the Baseline is **Inflation / rates up** at **-11.26%** (P&L -9.87%, OCI -1.39%). Rate shocks hit the P&L (matched FI) book; equity/property shocks hit the OCI (surplus) book. The grid shows how the worst-case loss shifts across philosophies - the **Stress Loss** column in Part A's table is each portfolio's worst row.
+**Why this lens.** Volatility describes a normal month; it says nothing about a specific, sudden move in rates, spreads or equities - the events that actually threaten the balance sheet and the earnings plan. Deterministic stress tests answer 'if *this* happens tomorrow, what do we lose, and does it hit earnings or reserves?'
+
+**What it means.** Each loss is split into **P&L** (FVTPL - hits this year's earnings immediately) and **OCI** (FVOCI - sits in reserves and bypasses earnings). A rate shock that is painful economically can be nearly invisible to earnings if it lands in the OCI book, and vice versa - the distinction an insurer manages to.
+
+**How it is calculated.** For every scenario, each asset is repriced first-order from its exposures: `-rate_duration x dRate - spread_duration x dSpread + equity_beta x dEquity + property_beta x dProperty`, weighted up to the portfolio. The panel deliberately includes single-factor *and* combined scenarios (shocks do not arrive in isolation), and the grid re-runs all of them against every portfolio.
+
+**What we found.** The worst instantaneous scenario for the Baseline is **Inflation / rates up** at **-11.26%** (P&L -9.87%, OCI -1.39%). Rate shocks concentrate in the P&L (matched FI) book; equity/property shocks land in the OCI (surplus) book. The **Stress Loss** column in Part A is each portfolio's worst row here.
+
+**What to study next.** Add second-order (convexity) terms for large moves, correlated multi-factor shocks calibrated to history, and a **reverse stress test** - solve for the scenario that breaches a chosen earnings or surplus limit, rather than guessing scenarios up front.
 
 ### B2. Lens 5 - LAGIC-style capital
 
@@ -95,7 +117,13 @@ The worst instantaneous scenario for the Baseline is **Inflation / rates up** at
 
 *Figure 6. Capital charge by category (Baseline).*
 
-The asset risk charge is the **worst of an 8-scenario prescribed panel** (deterministic, no history needed): **2.54%** of assets, binding in the **Broad recession** scenario (the fully diversified 'all categories at once' aggregate is **3.77%**, reported as a comparator). Return on capital is **2.01x**. The largest capital consumers in the binding scenario:
+**Why this lens.** For a regulated insurer the scarce resource is **regulatory capital**, not volatility. Two books with the same Sharpe can tie up very different amounts of capital, so the honest measure of efficiency is **return on capital**. The lab originally lacked this lens - it is the gap that motivated the build.
+
+**What it means.** The asset risk charge is the capital the regulator makes you hold against a prescribed worst case. It is fully **deterministic** - no return history is needed - so it is driven by *what you own*, not how it happened to trade.
+
+**How it is calculated.** Each capital category carries a prescribed stress loss. A **panel of 8 scenarios** scales those stresses for different states of the world (equity/property crash, credit crisis, IG widening, structured shock, unlisted revaluation, rates/inflation, severe equity, broad recession); each scenario is aggregated with a category correlation, and the **worst of the 8 is the binding charge**. (The capital-aware *optimisers* use a smooth diversified-aggregate proxy because the worst-of-panel max is not differentiable.)
+
+**What we found.** The binding charge is **2.54%** of assets, set by the **Broad recession** scenario (diversified-aggregate comparator **3.77%**); return on capital is **2.01x**. Largest consumers of capital in the binding scenario:
 
 | metric | capital |
 |---|---|
@@ -110,15 +138,21 @@ The asset risk charge is the **worst of an 8-scenario prescribed panel** (determ
 
 *Figure 7. Capital-efficient frontier (return vs capital).*
 
-Optimising return **per unit of capital** gives the Max-RoC portfolio: expected return **4.39%** at capital charge **1.03%** (RoC 4.24x). Conversely, **holding capital at the baseline's level**, the capital-budgeted optimiser lifts expected return to **5.88%** (vs baseline 5.09%) - more return for the same capital. For an insurer, capital - not volatility - is usually the binding constraint.
+**What we found.** Optimising return **per unit of capital** (Max-RoC) reaches **4.39%** at a charge of just **1.03%** (RoC 4.24x). More usefully, **holding capital at the baseline's level**, the capital-budgeted optimiser lifts expected return to **5.88%** (vs 5.09%) - a clean 'grow the pie' result: more return for the *same* capital.
+
+**What to study next.** Build toward a fuller LAGIC: add the interest-rate stress computed **net of liabilities** (not just assets), insurance- and operational-risk charges, the prescribed correlation matrix, and asset-concentration / counterparty add-ons. Then make capital a hard constraint in every optimiser, not just the capital-aware ones.
 
 ### B3. Lens 3/6 - Through-time earnings & carry
+
+**Why this lens.** An insurer is judged on whether it makes its **annual earnings plan**, not on a point-in-time Sharpe. That is the core point-in-time-vs-through-time tension: a portfolio can look efficient instantaneously yet miss the plan often because its return is volatile mark-to-market rather than predictable income.
+
+**What it means.** Return splits into **carry** (predictable running yield, banked whatever happens) and **mark-to-market** (volatile price moves). The higher the carry share, the more reliably the plan is met. Carry on both books hits P&L; only the *price* move of OCI assets bypasses earnings.
+
+**How it is calculated.** Each month is decomposed into carry vs MtM and P&L vs OCI, then aggregated to calendar-year earnings. For the tail we **block-bootstrap** the realised monthly P&L into thousands of synthetic plan-years (preserving short-run autocorrelation) and read off earnings-at-risk and CTE95 - resampling observed returns rather than assuming a bell curve.
 
 ![Figure 8. Annual earnings vs plan (red = missed).](charts/08_earnings_vs_plan.png)
 
 *Figure 8. Annual earnings vs plan (red = missed).*
-
-Annual earnings (P&L) volatility is **5.72%**; the chance of missing the 4.5% plan is **12%**; predictable **carry funds 59%** of the return.
 
 ![Figure 9. Duration & earnings stability: a duration-matched book earns steady carry whichever way rates move; an unmatched book is an unhedged rate bet.](charts/11_duration_earnings_example.png)
 
@@ -128,9 +162,21 @@ Annual earnings (P&L) volatility is **5.72%**; the chance of missing the 4.5% pl
 
 *Figure 10. Bootstrap distribution of plan-year P&L, with earnings-at-risk and CTE95.*
 
-Block-bootstrapping the monthly P&L into plan-year outcomes gives an **earnings-at-risk (5%) of 1.40%** and a **CTE95 of -0.53%** (the average of the worst 1-in-20 years) against a 4.5% plan - the downside an insurer's capital must absorb.
+**What we found.** Annual earnings (P&L) volatility is **5.72%**; the chance of missing the 4.5% plan is **12%**; predictable **carry funds 59%** of the return. The bootstrap gives an **earnings-at-risk (5%) of 1.40%** and a **CTE95 of -0.53%** (mean of the worst 1-in-20 years) - the downside capital must absorb.
+
+**What to study next.** Model the CFO's actual lever: a **dynamic duration glide path** that adds duration early in the plan year to protect the target and winds it down toward year-end. A full Monte-Carlo earnings simulation (paths, not just a bootstrap of the realised sample) would let that policy be optimised against plan-miss probability.
 
 ### B4. Lens 4 - Duration / ALM
+
+**Why this lens.** Insurers hold assets to back insurance **liabilities**; the first-order balance-sheet risk is the **duration gap** between the two, by currency. The brief's structure is explicit: run the P&L (matched) book roughly $-for-$ against liabilities so earnings are rate-neutral, while taking deliberate surplus duration in the **OCI** book - long economically, but without disturbing P&L.
+
+**What it means.** A rate move changes the economic surplus and reported earnings by *different* amounts. The difference is precisely the OCI/surplus book's rate exposure - duration you are paid to hold for the long-term economics but which is kept out of the earnings line.
+
+**How it is calculated.** Asset dollar-durations (weight x duration) are split into P&L and OCI books per currency; liabilities are backed ~1:1 by the P&L book with durations from config. A +100bp parallel shock is then decomposed into the matched-book earnings impact (assets net of liabilities) and the full economic-surplus impact.
+
+**What we found.** The total dollar-duration gap is **-0.29y**. A +100bp shock moves **economic surplus +0.29%** but **P&L earnings +0.48%** - the gap (**-0.19%**) is exactly the OCI/surplus rate exposure that bypasses earnings, confirming the matched-in-P&L / long-in-OCI design.
+
+**What to study next.** Move from single effective duration to **key-rate durations** (curve twists and steepeners, not just parallel shifts), add cross-currency basis, and drive liabilities from an actuarial cash-flow model rather than a stylised duration per currency.
 
 ![Figure 11. Asset vs liability duration by currency.](charts/09_duration_gap.png)
 
@@ -140,9 +186,17 @@ Block-bootstrapping the monthly P&L into plan-year outcomes gives an **earnings-
 
 *Figure 12. Each asset's contribution to portfolio duration.*
 
-The total dollar-duration gap is **-0.29y** (assets vs liabilities). A +100bp shock moves **economic surplus +0.29%** but **P&L earnings +0.48%** - the difference (**-0.19%**) is exactly the OCI/surplus book's rate exposure that bypasses earnings.
-
 ### B5. Risk budgeting & diversification
+
+**Why this lens.** Total volatility is one number; what a risk team manages is *where it comes from*. Two books with the same vol can be one diversified blend versus one concentrated bet - very different to govern.
+
+**What it means.** Each asset's **risk contribution** is its share of portfolio volatility (the shares sum to 100%). The **diversification ratio** (weighted-average asset vol / portfolio vol) measures how much offset the correlations buy: 1.0 means none. Crucially, the **earnings-vol** budget differs from the total-risk budget - an asset can be small in one and large in the other.
+
+**How it is calculated.** Risk contributions use marginal contribution to risk, MCTR_i = w_i (Sigma w)_i / vol. The earnings-vol budget attributes the variance of annual P&L to assets via cov(asset P&L, total P&L) / var(total P&L), so only the sleeves whose mark-to-market actually flows through earnings score.
+
+**What we found.** Diversification ratio **1.83**; average pairwise correlation **0.23**. Earnings (P&L) volatility is concentrated in **AUD Sovereign** and **IG Credit** (21% and 21% of P&L variance) - the long-duration P&L bonds, *not* the headline risk assets. Top total-risk contributors:
+
+**What to study next.** Risk contributions assume a stable covariance; stress them with **regime-dependent correlations** (which spike in a crisis) and add a **tail-risk contribution** (each asset's share of CVaR, not just variance).
 
 ![Figure 13. Risk contribution by asset and by capital category.](charts/13_risk_contribution.png)
 
@@ -151,8 +205,6 @@ The total dollar-duration gap is **-0.29y** (assets vs liabilities). A +100bp sh
 ![Figure 14. Asset return correlation matrix.](charts/12_correlation_heatmap.png)
 
 *Figure 14. Asset return correlation matrix.*
-
-Diversification ratio **1.83** (1 = none); average pairwise correlation **0.23**. Top risk contributors:
 
 | metric | risk_% |
 |---|---|
@@ -166,19 +218,15 @@ Diversification ratio **1.83** (1 = none); average pairwise correlation **0.23**
 
 *Figure 15. Which sleeves drive annual earnings (P&L) volatility.*
 
-Earnings (P&L) volatility is concentrated in **AUD Sovereign** and **IG Credit** (21% and 21% of P&L variance) - the long-duration P&L bonds whose mark-to-market flows through earnings. This is distinct from total-risk contribution: an asset can be small in the risk budget yet large in the *earnings* budget.
-
 ### B6. Through-time return drivers (factor analysis)
 
-![Figure 16. Annualised return attributed to each macro/market factor (plus alpha/carry).](charts/24_factor_attribution.png)
+**Why this lens.** Risk lenses say *how much* the book can move; they do not say *why* it moves. Factor analysis is the through-time view the brief kept circling: it separates return that is **paid factor premia / carry** from return that is a **time-varying factor bet** - and shows whether the recent record is skill or a one-off tailwind.
 
-*Figure 16. Annualised return attributed to each macro/market factor (plus alpha/carry).*
+**What it means.** A factor **beta** is the book's sensitivity to a driver (e.g. a rate beta near minus the duration). The **attribution** turns each beta into the annualised return it contributed. **Rolling** betas show the exposures drifting - a flat average can hide a bet that was put on and taken off over the cycle.
 
-![Figure 17. Rolling factor betas - exposures drift through time.](charts/25_rolling_factor_betas.png)
+**How it is calculated.** The book's monthly returns are regressed (OLS) on the macro/market factors - rates, credit spread, structured spread, equity, property, gold. Each factor's annual contribution = beta x mean monthly move x 12; the intercept is alpha/carry. Betas are then re-estimated on a rolling 36-month window.
 
-*Figure 17. Rolling factor betas - exposures drift through time.*
-
-Regressing the book's monthly returns on the macro/market factors (rates, credit spread, structured spread, equity, property, gold) explains **88%** of the variation. This is the *why* behind the return - and the **point-in-time vs through-time** tension: a flat average exposure can hide a factor bet that is wound up and down over the cycle (the rolling betas show that drift). Return attribution by factor:
+**What we found.** The factors explain **88%** of monthly variation. The decomposition below shows return dominated by **alpha/carry** plus a positive **rates** contribution - i.e. predictable income plus the one-off secular fall in rates, not a repeatable directional skill. Attribution by factor:
 
 | metric | beta | ann_contribution |
 |---|---|---|
@@ -190,17 +238,43 @@ Regressing the book's monthly returns on the macro/market factors (rates, credit
 | Gold | 0.0060 | 0.0001 |
 | Alpha / carry | nan | 0.0538 |
 
-On real data, replace the generative factors with observable market series (a rates index, IG OAS, an equity index) and the same regression gives a genuine driver-of-returns decomposition.
+![Figure 16. Annualised return attributed to each macro/market factor (plus alpha/carry).](charts/24_factor_attribution.png)
+
+*Figure 16. Annualised return attributed to each macro/market factor (plus alpha/carry).*
+
+![Figure 17. Rolling factor betas - exposures drift through time.](charts/25_rolling_factor_betas.png)
+
+*Figure 17. Rolling factor betas - exposures drift through time.*
+
+**What to study next.** On real data, swap the generative factors for **observable** market series (a rates index change, IG OAS, an equity index) so the decomposition is genuine. Then test **factor timing / regime conditioning** and separate factor risk-premia from true alpha - the foundation for the 'AI-side', through-time optimisation the brief asked for.
 
 ### B7. Liquidity, credit quality & solvency
+
+**Why this lens.** A high-returning book is no good if it cannot raise cash in a stress without fire-sales, or if a shock wipes out the solvency buffer. This lens checks the book is *fundable* and *solvent*, not just efficient.
+
+**What it means.** **Liquidity tiers** show how much can be sold quickly; **sub-investment-grade %** and **effective number of assets** flag credit and concentration risk; **surplus** (assets minus liabilities) is the capital buffer and **coverage** is assets / liabilities - what a worst-case stress eats into.
+
+**How it is calculated.** Weights are bucketed by a liquidity score and by rating; concentration uses the Herfindahl index (effective N = 1 / sum of squared weights); surplus-at-risk applies the worst stress loss to the asset base and re-derives coverage.
+
+**What we found.** **8%** of the book is illiquid; **5%** is sub-investment-grade; effective number of assets **11.2**. Surplus is **18%** of assets (coverage 1.22x); the worst stress erodes surplus by **-63%** to coverage 1.08x.
+
+**What to study next.** Add a **liquidity-coverage** test (cash raisable in N days vs a stressed claims outflow), time-to-liquidate haircuts by tier, and counterparty / issuer concentration limits.
 
 ![Figure 18. Liquidity tiers and rating distribution.](charts/15_liquidity_and_rating.png)
 
 *Figure 18. Liquidity tiers and rating distribution.*
 
-**8%** of the book is illiquid; **5%** is sub-investment-grade; effective number of assets **11.2**. Surplus is **18%** of assets (coverage 1.22x); the worst stress erodes surplus by **-63%** to a coverage of 1.08x.
-
 ### B8. Marginal efficiency & historical stress
+
+**Why this lens.** When capital or risk is the binding constraint, the question is not 'which asset has the best Sharpe' but 'which asset adds the most return for the next unit of *capital* (or risk) I spend'. And deterministic shocks should be sanity-checked against how the book *actually* behaved in real crises.
+
+**What it means.** **Marginal efficiency** ranks assets by return per unit of marginal capital / marginal risk - the trade that improves the book at the margin. The **historical episodes** are a data-driven complement to the made-up scenarios: the realised drawdown through the GFC, COVID and the 2022 rate sell-off embedded in the data.
+
+**How it is calculated.** Marginal capital is the asset's prescribed LAGIC stress; marginal risk is (Sigma w)_i / vol. Historical behaviour just compounds the portfolio's realised returns over each episode window.
+
+**What we found.** The episode table below shows the 2022 rate sell-off, not the GFC, is this book's worst drawdown - a direct consequence of its duration, and a useful cross-check on the deterministic 'Rates / inflation' scenario being the worst instantaneous shock.
+
+**What to study next.** Make the marginal trade **transaction-cost aware** (net of turnover) and condition the historical lens on the factor regime, so 'what hurt last time' is mapped to 'what we are exposed to now'.
 
 ![Figure 19. Return vs marginal capital per asset (bubble = weight).](charts/16_marginal_efficiency.png)
 
@@ -218,11 +292,15 @@ Realised behaviour through the embedded historical episodes:
 
 ### B9. Within-asset-class diversification (implementation alpha)
 
+**Why this lens.** An insurer's top-level allocation (the 85/15 split, the currency mix) is largely *given* - set by ALM and policy, not a free optimisation. But inside each class the *mix of sub-sleeves* is a genuine lever: small, repeatable 'implementation' alpha that is orthogonal to the SAA. The brief named structured credit as the growth area to investigate here.
+
+**What it means.** The test is **same-risk return**: holding each class's volatility at its benchmark level, can a better sub-sleeve mix earn more? A pickup that survives **out-of-sample and net of trading cost** is real edge; one that only shows up in-sample is an over-fit mirage.
+
+**How it is calculated.** Each class is decomposed into sub-sleeves (a shared-factor return model gives realistic, highly-correlated sub-returns). The enhanced mix maximises return subject to the benchmark-mix volatility. A walk-forward test then estimates the mix on a trailing window, applies it to the next year net of turnover cost, and accumulates the realised pickup. Structured credit is decomposed across CLOs by rating, ABS, RMBS and CMBS.
+
 ![Figure 20. Same-risk return pickup and diversification benefit by class.](charts/17_intra_asset_uplift.png)
 
 *Figure 20. Same-risk return pickup and diversification benefit by class.*
-
-The strategic allocation is fixed, but inside each class a better mix of sub-sleeves can add return at the **same risk**. Holding volatility at each class's benchmark level, the enhanced sub-allocation adds a few basis points per class - **+8.1 bps at the portfolio level, with the SAA completely unchanged**.
 
 | metric | class_weight | incremental_return_bps | oos_pickup_net_bps | div_vol_saved_bps | oos_turnover | portfolio_uplift_bps | portfolio_oos_uplift_bps |
 |---|---|---|---|---|---|---|---|
@@ -237,9 +315,9 @@ The strategic allocation is fixed, but inside each class a better mix of sub-sle
 
 *Figure 21. AUD Sovereign: the enhanced mix tilts to the belly of the curve (5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk.*
 
-This is genuine *implementation* alpha: small, repeatable and orthogonal to the top-level allocation - exactly where an insurer with a constrained SAA can still add value.
+**What we found.** In-sample the same-risk pickup is **+8.1 bps** at the portfolio level (SAA unchanged); **out-of-sample and net of cost** it is **+6.0 bps**, and it concentrates where sub-sleeve dispersion is *structural*: **Structured Credit** (CLOs by rating, ABS/RMBS/CMBS) is the standout, with **Listed Equities** (region/style) and **IG Credit** (quality/sector) also paying; **High Yield, the sovereign curve and Private Credit** are too noisy to rely on. The OOS test is exactly what separates real edge from an in-sample mirage.
 
-**Out-of-sample and net of trading costs** (walk-forward, annual rebalancing) the net portfolio pickup is **+6.0 bps**, and it is concentrated where sub-sleeve dispersion is *structural*: **Structured Credit** (CLOs by rating, ABS/RMBS/CMBS - a strategic growth area), **Listed Equities** (region/style) and **IG Credit** (quality/sector) all add meaningful same-risk return, whereas **High Yield, the sovereign curve and Private Credit** are too noisy for the tilt to pay reliably. The honest conclusion: harvest intra-class implementation alpha **only where the dispersion is structural** (structured credit is the standout - worth a deeper, granular build), size it modestly, and rebalance slowly to keep turnover low. Out-of-sample testing is exactly what separates a real edge from an in-sample mirage.
+**What to study next.** Build structured credit out **granularly** - CLO tranches by rating and vintage, US vs EU, ABS/RMBS/CMBS sub-types on real index data - since it is both the strongest result here and the strategic growth area. Harvest only where dispersion is structural, size modestly, and rebalance slowly to keep turnover low.
 
 ## Conclusion
 

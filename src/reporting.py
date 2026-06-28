@@ -395,6 +395,20 @@ def chart_marginal_efficiency(marg: pd.DataFrame) -> None:
 
 
 # ------------------------------------------------------------- markdown
+def story(why: str = "", means: str = "", how: str = "", found: str = "", nxt: str = "") -> str:
+    """Render a section's narrative as a consistent set of labelled beats:
+    why the lens is looked at, what it means, how it is calculated, what we found,
+    and what to study next. Empty beats are skipped."""
+    beats = [
+        ("Why this lens", why),
+        ("What it means", means),
+        ("How it is calculated", how),
+        ("What we found", found),
+        ("What to study next", nxt),
+    ]
+    return "\n\n".join(f"**{label}.** {text}" for label, text in beats if text) + "\n"
+
+
 def _df_to_md(df: pd.DataFrame) -> str:
     """Minimal DataFrame -> GitHub markdown table (avoids a tabulate dependency)."""
     cols = list(df.columns)
@@ -505,6 +519,16 @@ def write_full_report(results: dict) -> None:
              "showing why two portfolios with the same Sharpe can differ sharply on capital, drawdown and earnings.\n")
     m.append("The single comparison table below is the heart of the lab; everything after it explains the trade-offs it "
              "exposes.\n")
+    m.append("The framing follows the way the problem was put to us: there are really **two big lenses**. The first is "
+             "*mean-variance* - well understood, many ways to do it - which here becomes a whole family of construction "
+             "philosophies (Part A). The second is everything mean-variance ignores: shocks do not happen in isolation, an "
+             "insurer is judged on its **annual earnings plan** not a point-in-time Sharpe, and **capital** (not "
+             "volatility) is usually the binding constraint (Part B). The aim is not a portfolio that is optimal on one "
+             "axis but one that is **acceptable across all of them** - and, where possible, a change that improves several "
+             "at once (growing the pie rather than re-slicing it).\n")
+    m.append("**How to read each section below.** Every lens is written to the same five beats so the reasoning is "
+             "explicit: _Why this lens_ (why it is looked at), _What it means_, _How it is calculated_ (how it was "
+             "researched and computed), _What we found_ (the result on this book), and _What to study next_.\n")
 
     # =========================================================== PART A
     m.append("## Part A - Portfolio construction philosophies\n")
@@ -522,6 +546,18 @@ def write_full_report(results: dict) -> None:
              "- **Baseline / Risk 20%** - the insurer's strategic book and a risk-scaled scenario for reference.\n"
              "- _Roadmap placeholders_: **Black-Litterman** and **robust optimisation** are scaffolded in "
              "`src/construction.py` (documented, not yet wired into the comparison).\n")
+    m.append(story(
+        why="Every philosophy encodes a different *belief* about what is knowable. Mean-variance trusts the return "
+            "forecast; minimum variance and risk parity distrust it and lean only on the covariance; equal weight "
+            "distrusts everything. Building them side by side stops us over-fitting to one worldview - exactly the "
+            "'don't get stuck in one way of thinking' instruction.",
+        how="Each optimiser is an independent function in `src/optimizer.py` / `src/construction.py` that returns a "
+            "`Portfolio`. Forward `exp_return` assumptions drive return; the historical covariance drives risk. Risk "
+            "parity and maximum diversification are solved (SLSQP) under the *same* mandate constraints as mean-variance "
+            "so the contest is fair; equal weight is left unconstrained as the naive control.",
+        nxt="Wire in the scaffolded **Black-Litterman** (blend equilibrium with views) and **robust** optimisers, then "
+            "newer philosophies - ML return forecasts, regime-switching, Bayesian / multi-objective - all behind the "
+            "same comparison so they are judged on identical metrics."))
     m.append("### A2. Side-by-side comparison\n")
     m.append("Every portfolio, every headline metric (the full set, including the retained context columns, is in "
              "`outputs/tables/portfolio_comparison.csv`):\n")
@@ -530,12 +566,19 @@ def write_full_report(results: dict) -> None:
              "instantaneous scenario; turnover (and tracking error, in the CSV) is measured against the Baseline book._\n")
     m.append(img("23_philosophy_metrics", "Figure 1. Risk-adjusted return (Sharpe & Sortino) across the construction philosophies."))
     m.append(img("01_efficient_frontier", "Figure 2. Constrained efficient frontier with each philosophy plotted."))
-    m.append(f"Within the insurer constraints the **Max-Sharpe** portfolio reaches expected return "
-             f"**{pf['Max-Sharpe'].expected_return():.2%}** at volatility **{pf['Max-Sharpe'].volatility():.2%}** "
-             f"(Sharpe {comp.loc['Max-Sharpe','sharpe']:.2f}), versus the baseline at "
-             f"**{base.expected_return():.2%}** / **{base.volatility():.2%}**. **Min-Variance** and **Risk-Parity** trade "
-             "return for stability; **Equal-Weight**, unconstrained, takes the most risk and the largest turnover to "
-             "implement. No single portfolio wins on every column - which is the point.\n")
+    m.append(story(
+        means="Read each row as a portfolio and each column as a lens. The right-most columns (capital charge, stress "
+              "loss, turnover) are where philosophies that look identical on return/volatility separate - which is the "
+              "whole argument for not optimising a single number.",
+        found=f"Within the insurer constraints the **Max-Sharpe** book reaches expected return "
+              f"**{pf['Max-Sharpe'].expected_return():.2%}** at volatility **{pf['Max-Sharpe'].volatility():.2%}** "
+              f"(Sharpe {comp.loc['Max-Sharpe','sharpe']:.2f}) versus the baseline at "
+              f"**{base.expected_return():.2%}** / **{base.volatility():.2%}**; **Min-Variance** and **Risk-Parity** trade "
+              "return for stability, while **Equal-Weight** takes the most risk and the largest turnover to implement. No "
+              "single portfolio wins every column.",
+        nxt="Add the objective that is actually binding for the business each period (capital, earnings stability) as a "
+            "constraint and search for **Pareto improvements** - moves that help one lens without hurting the others - "
+            "rather than a single 'optimal' point."))
     m.append(img("02_allocation_comparison", "Figure 3. Allocation by capital category across philosophies."))
 
     # =========================================================== PART B
@@ -547,107 +590,219 @@ def write_full_report(results: dict) -> None:
     m.append(img("22_stress_grid", "Figure 4. Stress grid - every scenario against every portfolio (total impact, %)."))
     m.append(img("03_stress_scenarios", "Figure 5. Baseline stress impacts split into P&L and OCI."))
     m.append(_df_to_md(stress.round(4)) + "\n")
-    m.append(f"The worst instantaneous scenario for the Baseline is **{worst_s}** at **{stress.loc[worst_s,'total_impact']:.2%}** "
-             f"(P&L {stress.loc[worst_s,'pnl_impact']:.2%}, OCI {stress.loc[worst_s,'oci_impact']:.2%}). Rate shocks hit the "
-             "P&L (matched FI) book; equity/property shocks hit the OCI (surplus) book. The grid shows how the worst-case "
-             "loss shifts across philosophies - the **Stress Loss** column in Part A's table is each portfolio's worst row.\n")
+    m.append(story(
+        why="Volatility describes a normal month; it says nothing about a specific, sudden move in rates, spreads or "
+            "equities - the events that actually threaten the balance sheet and the earnings plan. Deterministic stress "
+            "tests answer 'if *this* happens tomorrow, what do we lose, and does it hit earnings or reserves?'",
+        means="Each loss is split into **P&L** (FVTPL - hits this year's earnings immediately) and **OCI** (FVOCI - sits "
+              "in reserves and bypasses earnings). A rate shock that is painful economically can be nearly invisible to "
+              "earnings if it lands in the OCI book, and vice versa - the distinction an insurer manages to.",
+        how="For every scenario, each asset is repriced first-order from its exposures: "
+            "`-rate_duration x dRate - spread_duration x dSpread + equity_beta x dEquity + property_beta x dProperty`, "
+            "weighted up to the portfolio. The panel deliberately includes single-factor *and* combined scenarios (shocks "
+            "do not arrive in isolation), and the grid re-runs all of them against every portfolio.",
+        found=f"The worst instantaneous scenario for the Baseline is **{worst_s}** at "
+              f"**{stress.loc[worst_s,'total_impact']:.2%}** (P&L {stress.loc[worst_s,'pnl_impact']:.2%}, "
+              f"OCI {stress.loc[worst_s,'oci_impact']:.2%}). Rate shocks concentrate in the P&L (matched FI) book; "
+              "equity/property shocks land in the OCI (surplus) book. The **Stress Loss** column in Part A is each "
+              "portfolio's worst row here.",
+        nxt="Add second-order (convexity) terms for large moves, correlated multi-factor shocks calibrated to history, "
+            "and a **reverse stress test** - solve for the scenario that breaches a chosen earnings or surplus limit, "
+            "rather than guessing scenarios up front."))
 
     m.append("### B2. Lens 5 - LAGIC-style capital\n")
     m.append(img("04_capital_by_category", "Figure 6. Capital charge by category (Baseline)."))
-    m.append(f"The asset risk charge is the **worst of an 8-scenario prescribed panel** (deterministic, no history needed): "
-             f"**{lag['capital_charge']:.2%}** of assets, binding in the **{lag['worst_scenario']}** scenario "
-             f"(the fully diversified 'all categories at once' aggregate is **{lag['diversified_charge']:.2%}**, reported as "
-             f"a comparator). Return on capital is **{lag['return_on_capital']:.2f}x**. The largest capital consumers in "
-             "the binding scenario:\n")
+    m.append(story(
+        why="For a regulated insurer the scarce resource is **regulatory capital**, not volatility. Two books with the "
+            "same Sharpe can tie up very different amounts of capital, so the honest measure of efficiency is **return on "
+            "capital**. The lab originally lacked this lens - it is the gap that motivated the build.",
+        means="The asset risk charge is the capital the regulator makes you hold against a prescribed worst case. It is "
+              "fully **deterministic** - no return history is needed - so it is driven by *what you own*, not how it "
+              "happened to trade.",
+        how="Each capital category carries a prescribed stress loss. A **panel of 8 scenarios** scales those stresses for "
+            "different states of the world (equity/property crash, credit crisis, IG widening, structured shock, unlisted "
+            "revaluation, rates/inflation, severe equity, broad recession); each scenario is aggregated with a category "
+            "correlation, and the **worst of the 8 is the binding charge**. (The capital-aware *optimisers* use a smooth "
+            "diversified-aggregate proxy because the worst-of-panel max is not differentiable.)",
+        found=f"The binding charge is **{lag['capital_charge']:.2%}** of assets, set by the **{lag['worst_scenario']}** "
+              f"scenario (diversified-aggregate comparator **{lag['diversified_charge']:.2%}**); return on capital is "
+              f"**{lag['return_on_capital']:.2f}x**. Largest consumers of capital in the binding scenario:"))
     m.append(_df_to_md(lag["marginal_capital"].head(6).rename("capital").to_frame()) + "\n")
     m.append(img("14_capital_efficient_frontier", "Figure 7. Capital-efficient frontier (return vs capital)."))
-    m.append(f"Optimising return **per unit of capital** gives the Max-RoC portfolio: expected return "
-             f"**{pf['Max-RoC'].expected_return():.2%}** at capital charge **{comp.loc['Max-RoC','capital_charge']:.2%}** "
-             f"(RoC {comp.loc['Max-RoC','return_on_capital']:.2f}x). Conversely, **holding capital at the baseline's "
-             f"level**, the capital-budgeted optimiser lifts expected return to "
-             f"**{pf['Capital-Budgeted'].expected_return():.2%}** (vs baseline {base.expected_return():.2%}) - more return "
-             "for the same capital. For an insurer, capital - not volatility - is usually the binding constraint.\n")
+    m.append(story(
+        found=f"Optimising return **per unit of capital** (Max-RoC) reaches **{pf['Max-RoC'].expected_return():.2%}** at a "
+              f"charge of just **{comp.loc['Max-RoC','capital_charge']:.2%}** (RoC {comp.loc['Max-RoC','return_on_capital']:.2f}x). "
+              f"More usefully, **holding capital at the baseline's level**, the capital-budgeted optimiser lifts expected "
+              f"return to **{pf['Capital-Budgeted'].expected_return():.2%}** (vs {base.expected_return():.2%}) - a clean "
+              "'grow the pie' result: more return for the *same* capital.",
+        nxt="Build toward a fuller LAGIC: add the interest-rate stress computed **net of liabilities** (not just assets), "
+            "insurance- and operational-risk charges, the prescribed correlation matrix, and asset-concentration / "
+            "counterparty add-ons. Then make capital a hard constraint in every optimiser, not just the capital-aware ones."))
 
     m.append("### B3. Lens 3/6 - Through-time earnings & carry\n")
+    et = results["earnings_risk"]["table"].loc["Baseline"]
+    m.append(story(
+        why="An insurer is judged on whether it makes its **annual earnings plan**, not on a point-in-time Sharpe. That "
+            "is the core point-in-time-vs-through-time tension: a portfolio can look efficient instantaneously yet miss "
+            "the plan often because its return is volatile mark-to-market rather than predictable income.",
+        means="Return splits into **carry** (predictable running yield, banked whatever happens) and **mark-to-market** "
+              "(volatile price moves). The higher the carry share, the more reliably the plan is met. Carry on both books "
+              "hits P&L; only the *price* move of OCI assets bypasses earnings.",
+        how="Each month is decomposed into carry vs MtM and P&L vs OCI, then aggregated to calendar-year earnings. For the "
+            "tail we **block-bootstrap** the realised monthly P&L into thousands of synthetic plan-years (preserving "
+            "short-run autocorrelation) and read off earnings-at-risk and CTE95 - resampling observed returns rather than "
+            "assuming a bell curve."))
     m.append(img("08_earnings_vs_plan", "Figure 8. Annual earnings vs plan (red = missed)."))
-    m.append(f"Annual earnings (P&L) volatility is **{earn['earnings_volatility']:.2%}**; the chance of missing the "
-             f"{earn['plan_target']:.1%} plan is **{earn['plan_miss_prob']:.0%}**; predictable **carry funds "
-             f"{earn['carry_share_of_return']:.0%}** of the return.\n")
     m.append(img("11_duration_earnings_example", "Figure 9. Duration & earnings stability: a duration-matched book earns "
                  "steady carry whichever way rates move; an unmatched book is an unhedged rate bet."))
-    et = results["earnings_risk"]["table"].loc["Baseline"]
     m.append(img("19_earnings_at_risk", "Figure 10. Bootstrap distribution of plan-year P&L, with earnings-at-risk and CTE95."))
-    m.append(f"Block-bootstrapping the monthly P&L into plan-year outcomes gives an **earnings-at-risk (5%) of "
-             f"{et['earnings_at_risk_5pc']:.2%}** and a **CTE95 of {et['cte_95']:.2%}** (the average of the worst 1-in-20 "
-             f"years) against a {et['plan_target']:.1%} plan - the downside an insurer's capital must absorb.\n")
+    m.append(story(
+        found=f"Annual earnings (P&L) volatility is **{earn['earnings_volatility']:.2%}**; the chance of missing the "
+              f"{earn['plan_target']:.1%} plan is **{earn['plan_miss_prob']:.0%}**; predictable **carry funds "
+              f"{earn['carry_share_of_return']:.0%}** of the return. The bootstrap gives an **earnings-at-risk (5%) of "
+              f"{et['earnings_at_risk_5pc']:.2%}** and a **CTE95 of {et['cte_95']:.2%}** (mean of the worst 1-in-20 years) "
+              "- the downside capital must absorb.",
+        nxt="Model the CFO's actual lever: a **dynamic duration glide path** that adds duration early in the plan year to "
+            "protect the target and winds it down toward year-end. A full Monte-Carlo earnings simulation (paths, not just "
+            "a bootstrap of the realised sample) would let that policy be optimised against plan-miss probability."))
 
     m.append("### B4. Lens 4 - Duration / ALM\n")
+    rs = dur["rate_shock"]
+    m.append(story(
+        why="Insurers hold assets to back insurance **liabilities**; the first-order balance-sheet risk is the **duration "
+            "gap** between the two, by currency. The brief's structure is explicit: run the P&L (matched) book roughly "
+            "$-for-$ against liabilities so earnings are rate-neutral, while taking deliberate surplus duration in the "
+            "**OCI** book - long economically, but without disturbing P&L.",
+        means="A rate move changes the economic surplus and reported earnings by *different* amounts. The difference is "
+              "precisely the OCI/surplus book's rate exposure - duration you are paid to hold for the long-term economics "
+              "but which is kept out of the earnings line.",
+        how="Asset dollar-durations (weight x duration) are split into P&L and OCI books per currency; liabilities are "
+            "backed ~1:1 by the P&L book with durations from config. A +100bp parallel shock is then decomposed into the "
+            "matched-book earnings impact (assets net of liabilities) and the full economic-surplus impact.",
+        found=f"The total dollar-duration gap is **{dur['total_dollar_duration_gap']:+.2f}y**. A +100bp shock moves "
+              f"**economic surplus {rs['economic_surplus_impact']:+.2%}** but **P&L earnings {rs['pnl_earnings_impact']:+.2%}** "
+              f"- the gap (**{rs['economic_minus_pnl']:+.2%}**) is exactly the OCI/surplus rate exposure that bypasses "
+              "earnings, confirming the matched-in-P&L / long-in-OCI design.",
+        nxt="Move from single effective duration to **key-rate durations** (curve twists and steepeners, not just parallel "
+            "shifts), add cross-currency basis, and drive liabilities from an actuarial cash-flow model rather than a "
+            "stylised duration per currency."))
     m.append(img("09_duration_gap", "Figure 11. Asset vs liability duration by currency."))
     m.append(img("21_duration_contribution", "Figure 12. Each asset's contribution to portfolio duration."))
-    rs = dur["rate_shock"]
-    m.append(f"The total dollar-duration gap is **{dur['total_dollar_duration_gap']:+.2f}y** (assets vs liabilities). "
-             f"A +100bp shock moves **economic surplus {rs['economic_surplus_impact']:+.2%}** but **P&L earnings "
-             f"{rs['pnl_earnings_impact']:+.2%}** - the difference (**{rs['economic_minus_pnl']:+.2%}**) is exactly the "
-             "OCI/surplus book's rate exposure that bypasses earnings.\n")
 
     m.append("### B5. Risk budgeting & diversification\n")
+    evc = ra["earnings_vol_contribution"]
+    m.append(story(
+        why="Total volatility is one number; what a risk team manages is *where it comes from*. Two books with the same "
+            "vol can be one diversified blend versus one concentrated bet - very different to govern.",
+        means="Each asset's **risk contribution** is its share of portfolio volatility (the shares sum to 100%). The "
+              "**diversification ratio** (weighted-average asset vol / portfolio vol) measures how much offset the "
+              "correlations buy: 1.0 means none. Crucially, the **earnings-vol** budget differs from the total-risk "
+              "budget - an asset can be small in one and large in the other.",
+        how="Risk contributions use marginal contribution to risk, MCTR_i = w_i (Sigma w)_i / vol. The earnings-vol budget "
+            "attributes the variance of annual P&L to assets via cov(asset P&L, total P&L) / var(total P&L), so only the "
+            "sleeves whose mark-to-market actually flows through earnings score.",
+        found=f"Diversification ratio **{ra['diversification_ratio']:.2f}**; average pairwise correlation "
+              f"**{ra['avg_pairwise_correlation']:.2f}**. Earnings (P&L) volatility is concentrated in **{evc.index[0]}** "
+              f"and **{evc.index[1]}** ({evc.iloc[0]:.0%} and {evc.iloc[1]:.0%} of P&L variance) - the long-duration P&L "
+              "bonds, *not* the headline risk assets. Top total-risk contributors:",
+        nxt="Risk contributions assume a stable covariance; stress them with **regime-dependent correlations** (which "
+            "spike in a crisis) and add a **tail-risk contribution** (each asset's share of CVaR, not just variance)."))
     m.append(img("13_risk_contribution", "Figure 13. Risk contribution by asset and by capital category."))
     m.append(img("12_correlation_heatmap", "Figure 14. Asset return correlation matrix."))
-    m.append(f"Diversification ratio **{ra['diversification_ratio']:.2f}** (1 = none); average pairwise correlation "
-             f"**{ra['avg_pairwise_correlation']:.2f}**. Top risk contributors:\n")
     m.append(_df_to_md((ra["risk_by_asset"].head(5) * 100).round(1).rename("risk_%").to_frame()) + "\n")
     m.append(img("20_earnings_vol_contribution", "Figure 15. Which sleeves drive annual earnings (P&L) volatility."))
-    evc = ra["earnings_vol_contribution"]
-    m.append(f"Earnings (P&L) volatility is concentrated in **{evc.index[0]}** and **{evc.index[1]}** "
-             f"({evc.iloc[0]:.0%} and {evc.iloc[1]:.0%} of P&L variance) - the long-duration P&L bonds whose "
-             "mark-to-market flows through earnings. This is distinct from total-risk contribution: an asset can be small "
-             "in the risk budget yet large in the *earnings* budget.\n")
 
     if fa is not None:
         m.append("### B6. Through-time return drivers (factor analysis)\n")
+        m.append(story(
+            why="Risk lenses say *how much* the book can move; they do not say *why* it moves. Factor analysis is the "
+                "through-time view the brief kept circling: it separates return that is **paid factor premia / carry** "
+                "from return that is a **time-varying factor bet** - and shows whether the recent record is skill or a "
+                "one-off tailwind.",
+            means="A factor **beta** is the book's sensitivity to a driver (e.g. a rate beta near minus the duration). "
+                  "The **attribution** turns each beta into the annualised return it contributed. **Rolling** betas show "
+                  "the exposures drifting - a flat average can hide a bet that was put on and taken off over the cycle.",
+            how="The book's monthly returns are regressed (OLS) on the macro/market factors - rates, credit spread, "
+                "structured spread, equity, property, gold. Each factor's annual contribution = beta x mean monthly move "
+                "x 12; the intercept is alpha/carry. Betas are then re-estimated on a rolling 36-month window.",
+            found=f"The factors explain **{fa['r_squared']:.0%}** of monthly variation. The decomposition below shows "
+                  "return dominated by **alpha/carry** plus a positive **rates** contribution - i.e. predictable income "
+                  "plus the one-off secular fall in rates, not a repeatable directional skill. Attribution by factor:"))
+        m.append(_df_to_md(fa["attribution"].round(4)) + "\n")
         m.append(img("24_factor_attribution", "Figure 16. Annualised return attributed to each macro/market factor (plus alpha/carry)."))
         m.append(img("25_rolling_factor_betas", "Figure 17. Rolling factor betas - exposures drift through time."))
-        m.append(f"Regressing the book's monthly returns on the macro/market factors (rates, credit spread, structured "
-                 f"spread, equity, property, gold) explains **{fa['r_squared']:.0%}** of the variation. This is the "
-                 "*why* behind the return - and the **point-in-time vs through-time** tension: a flat average exposure can "
-                 "hide a factor bet that is wound up and down over the cycle (the rolling betas show that drift). Return "
-                 "attribution by factor:\n")
-        m.append(_df_to_md(fa["attribution"].round(4)) + "\n")
-        m.append("On real data, replace the generative factors with observable market series (a rates index, IG OAS, an "
-                 "equity index) and the same regression gives a genuine driver-of-returns decomposition.\n")
+        m.append(story(
+            nxt="On real data, swap the generative factors for **observable** market series (a rates index change, IG "
+                "OAS, an equity index) so the decomposition is genuine. Then test **factor timing / regime conditioning** "
+                "and separate factor risk-premia from true alpha - the foundation for the 'AI-side', through-time "
+                "optimisation the brief asked for."))
 
     m.append("### B7. Liquidity, credit quality & solvency\n")
-    m.append(img("15_liquidity_and_rating", "Figure 18. Liquidity tiers and rating distribution."))
     s = dg["surplus"]
-    m.append(f"**{dg['liquidity']['pct_illiquid']:.0%}** of the book is illiquid; **{dg['rating']['sub_investment_grade']:.0%}** "
-             f"is sub-investment-grade; effective number of assets **{dg['concentration']['effective_n_assets']:.1f}**. "
-             f"Surplus is **{s['surplus']:.0%}** of assets (coverage {s['coverage_ratio']:.2f}x); the worst stress erodes "
-             f"surplus by **{s['surplus_erosion_pct']:.0%}** to a coverage of {s['coverage_ratio_stressed']:.2f}x.\n")
+    m.append(story(
+        why="A high-returning book is no good if it cannot raise cash in a stress without fire-sales, or if a shock wipes "
+            "out the solvency buffer. This lens checks the book is *fundable* and *solvent*, not just efficient.",
+        means="**Liquidity tiers** show how much can be sold quickly; **sub-investment-grade %** and **effective number "
+              "of assets** flag credit and concentration risk; **surplus** (assets minus liabilities) is the capital "
+              "buffer and **coverage** is assets / liabilities - what a worst-case stress eats into.",
+        how="Weights are bucketed by a liquidity score and by rating; concentration uses the Herfindahl index (effective "
+            "N = 1 / sum of squared weights); surplus-at-risk applies the worst stress loss to the asset base and "
+            "re-derives coverage.",
+        found=f"**{dg['liquidity']['pct_illiquid']:.0%}** of the book is illiquid; **{dg['rating']['sub_investment_grade']:.0%}** "
+              f"is sub-investment-grade; effective number of assets **{dg['concentration']['effective_n_assets']:.1f}**. "
+              f"Surplus is **{s['surplus']:.0%}** of assets (coverage {s['coverage_ratio']:.2f}x); the worst stress erodes "
+              f"surplus by **{s['surplus_erosion_pct']:.0%}** to coverage {s['coverage_ratio_stressed']:.2f}x.",
+        nxt="Add a **liquidity-coverage** test (cash raisable in N days vs a stressed claims outflow), time-to-liquidate "
+            "haircuts by tier, and counterparty / issuer concentration limits."))
+    m.append(img("15_liquidity_and_rating", "Figure 18. Liquidity tiers and rating distribution."))
 
     m.append("### B8. Marginal efficiency & historical stress\n")
+    m.append(story(
+        why="When capital or risk is the binding constraint, the question is not 'which asset has the best Sharpe' but "
+            "'which asset adds the most return for the next unit of *capital* (or risk) I spend'. And deterministic "
+            "shocks should be sanity-checked against how the book *actually* behaved in real crises.",
+        means="**Marginal efficiency** ranks assets by return per unit of marginal capital / marginal risk - the trade "
+              "that improves the book at the margin. The **historical episodes** are a data-driven complement to the "
+              "made-up scenarios: the realised drawdown through the GFC, COVID and the 2022 rate sell-off embedded in the "
+              "data.",
+        how="Marginal capital is the asset's prescribed LAGIC stress; marginal risk is (Sigma w)_i / vol. Historical "
+            "behaviour just compounds the portfolio's realised returns over each episode window.",
+        found="The episode table below shows the 2022 rate sell-off, not the GFC, is this book's worst drawdown - a "
+              "direct consequence of its duration, and a useful cross-check on the deterministic 'Rates / inflation' "
+              "scenario being the worst instantaneous shock.",
+        nxt="Make the marginal trade **transaction-cost aware** (net of turnover) and condition the historical lens on "
+            "the factor regime, so 'what hurt last time' is mapped to 'what we are exposed to now'."))
     m.append(img("16_marginal_efficiency", "Figure 19. Return vs marginal capital per asset (bubble = weight)."))
     m.append("Realised behaviour through the embedded historical episodes:\n")
     m.append(_df_to_md(dg["historical_stress"].round(4)) + "\n")
 
     m.append("### B9. Within-asset-class diversification (implementation alpha)\n")
+    m.append(story(
+        why="An insurer's top-level allocation (the 85/15 split, the currency mix) is largely *given* - set by ALM and "
+            "policy, not a free optimisation. But inside each class the *mix of sub-sleeves* is a genuine lever: small, "
+            "repeatable 'implementation' alpha that is orthogonal to the SAA. The brief named structured credit as the "
+            "growth area to investigate here.",
+        means="The test is **same-risk return**: holding each class's volatility at its benchmark level, can a better "
+              "sub-sleeve mix earn more? A pickup that survives **out-of-sample and net of trading cost** is real edge; "
+              "one that only shows up in-sample is an over-fit mirage.",
+        how="Each class is decomposed into sub-sleeves (a shared-factor return model gives realistic, highly-correlated "
+            "sub-returns). The enhanced mix maximises return subject to the benchmark-mix volatility. A walk-forward test "
+            "then estimates the mix on a trailing window, applies it to the next year net of turnover cost, and "
+            "accumulates the realised pickup. Structured credit is decomposed across CLOs by rating, ABS, RMBS and CMBS."))
     m.append(img("17_intra_asset_uplift", "Figure 20. Same-risk return pickup and diversification benefit by class."))
-    m.append("The strategic allocation is fixed, but inside each class a better mix of sub-sleeves can add return at the "
-             "**same risk**. Holding volatility at each class's benchmark level, the enhanced sub-allocation adds a few "
-             f"basis points per class - **+{intra['portfolio_return_uplift_bps']:.1f} bps at the portfolio level, with the "
-             "SAA completely unchanged**.\n")
     m.append(_df_to_md(intra["summary"].round(3)) + "\n")
     m.append(img("18_intra_class_weights", "Figure 21. AUD Sovereign: the enhanced mix tilts to the belly of the curve "
                  "(5-10y), trimming the low-yield 2y and the high-vol 20y - more yield at the same duration risk."))
-    m.append("This is genuine *implementation* alpha: small, repeatable and orthogonal to the top-level allocation - "
-             "exactly where an insurer with a constrained SAA can still add value.\n")
-    m.append(f"**Out-of-sample and net of trading costs** (walk-forward, annual rebalancing) the net portfolio pickup is "
-             f"**{intra['portfolio_oos_uplift_bps']:+.1f} bps**, and it is concentrated where sub-sleeve dispersion is "
-             "*structural*: **Structured Credit** (CLOs by rating, ABS/RMBS/CMBS - a strategic growth area), **Listed "
-             "Equities** (region/style) and **IG Credit** (quality/sector) all add meaningful same-risk return, whereas "
-             "**High Yield, the sovereign curve and Private Credit** are too noisy for the tilt to pay reliably. The honest "
-             "conclusion: harvest intra-class implementation alpha **only where the dispersion is structural** (structured "
-             "credit is the standout - worth a deeper, granular build), size it modestly, and rebalance slowly to keep "
-             "turnover low. Out-of-sample testing is exactly what separates a real edge from an in-sample mirage.\n")
+    m.append(story(
+        found=f"In-sample the same-risk pickup is **+{intra['portfolio_return_uplift_bps']:.1f} bps** at the portfolio "
+              f"level (SAA unchanged); **out-of-sample and net of cost** it is **{intra['portfolio_oos_uplift_bps']:+.1f} "
+              "bps**, and it concentrates where sub-sleeve dispersion is *structural*: **Structured Credit** (CLOs by "
+              "rating, ABS/RMBS/CMBS) is the standout, with **Listed Equities** (region/style) and **IG Credit** "
+              "(quality/sector) also paying; **High Yield, the sovereign curve and Private Credit** are too noisy to rely "
+              "on. The OOS test is exactly what separates real edge from an in-sample mirage.",
+        nxt="Build structured credit out **granularly** - CLO tranches by rating and vintage, US vs EU, ABS/RMBS/CMBS "
+            "sub-types on real index data - since it is both the strongest result here and the strategic growth area. "
+            "Harvest only where dispersion is structural, size modestly, and rebalance slowly to keep turnover low."))
 
     # ----------------------------------------------------------- close
     m.append("## Conclusion\n")
