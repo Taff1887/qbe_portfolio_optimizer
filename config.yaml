@@ -170,6 +170,30 @@ sub_sleeves:
       - { name: "CMBS",              exp_return: 0.062, ann_vol: 0.058, benchmark_weight: 0.12 }
 
 # -----------------------------------------------------------------------------
+# Granular structured-credit universe for the dedicated deep-dive
+# (structured_credit.py). Each tranche carries a forward return/vol, spread
+# duration, region, a LAGIC capital_category (-> prescribed stress) and a real
+# ETF/index ticker hook. The question: the best same-risk AND capital-efficient
+# MIX across securitised sub-sectors - the strategic growth area.
+# -----------------------------------------------------------------------------
+structured_credit:
+  intra_correlation: 0.72
+  parent_assets: ["CLO AAA", "ABS", "RMBS", "CMBS", "CLO BBB"]
+  tranches:
+    - { name: "CLO AAA US",  exp_return: 0.059, ann_vol: 0.030, spread_duration: 4.0, rating: AAA, region: US, capital_category: structured_senior, benchmark_weight: 0.22, ticker: "JAAA" }
+    - { name: "CLO AAA EU",  exp_return: 0.062, ann_vol: 0.034, spread_duration: 4.2, rating: AAA, region: EU, capital_category: structured_senior, benchmark_weight: 0.10, ticker: "" }
+    - { name: "CLO AA",      exp_return: 0.066, ann_vol: 0.042, spread_duration: 4.5, rating: AA,  region: US, capital_category: structured_senior, benchmark_weight: 0.08, ticker: "" }
+    - { name: "CLO A",       exp_return: 0.074, ann_vol: 0.058, spread_duration: 4.8, rating: A,   region: US, capital_category: structured_mezz,   benchmark_weight: 0.06, ticker: "" }
+    - { name: "CLO BBB",     exp_return: 0.090, ann_vol: 0.090, spread_duration: 5.0, rating: BBB, region: US, capital_category: structured_mezz,   benchmark_weight: 0.06, ticker: "JBBB" }
+    - { name: "CLO BB",      exp_return: 0.115, ann_vol: 0.140, spread_duration: 5.2, rating: BB,  region: US, capital_category: structured_mezz,   benchmark_weight: 0.03, ticker: "" }
+    - { name: "ABS Auto",    exp_return: 0.052, ann_vol: 0.030, spread_duration: 2.0, rating: AAA, region: US, capital_category: structured_senior, benchmark_weight: 0.12, ticker: "" }
+    - { name: "ABS Card",    exp_return: 0.050, ann_vol: 0.028, spread_duration: 2.2, rating: AAA, region: US, capital_category: structured_senior, benchmark_weight: 0.07, ticker: "" }
+    - { name: "RMBS Prime",  exp_return: 0.048, ann_vol: 0.034, spread_duration: 3.0, rating: AAA, region: US, capital_category: structured_senior, benchmark_weight: 0.10, ticker: "MBB" }
+    - { name: "RMBS Non-QM", exp_return: 0.067, ann_vol: 0.060, spread_duration: 3.5, rating: A,   region: US, capital_category: structured_mezz,   benchmark_weight: 0.04, ticker: "" }
+    - { name: "CMBS Conduit", exp_return: 0.062, ann_vol: 0.058, spread_duration: 4.0, rating: A,  region: US, capital_category: structured_mezz,   benchmark_weight: 0.03, ticker: "CMBS" }
+    - { name: "CMBS SASB",   exp_return: 0.078, ann_vol: 0.085, spread_duration: 4.3, rating: BBB, region: US, capital_category: structured_mezz,   benchmark_weight: 0.03, ticker: "" }
+
+# -----------------------------------------------------------------------------
 # Instantaneous stress scenarios (lens 2). Shocks are applied via each asset's
 # rate duration, spread duration, equity beta and property beta.
 #   rate_bps      : parallel govt-rate shock (basis points)

@@ -276,6 +276,32 @@ def chart_liquidity_and_rating(liq: dict, rating: dict) -> None:
     save_chart(fig, "15_liquidity_and_rating")
 
 
+def chart_structured_credit(sc: dict) -> None:
+    """Two panels: the tranche map (return vs vol, bubble = capital) and the
+    benchmark vs same-risk vs capital-efficient sub-allocation."""
+    tr = sc["tranches"]
+    fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+    sizes = tr["capital"] * 1500 + 25
+    sccr = axes[0].scatter(tr["ann_vol"] * 100, tr["exp_return"] * 100, s=sizes, alpha=0.65, color="#0072B2")
+    for nm, r in tr.iterrows():
+        axes[0].annotate(nm, (r["ann_vol"] * 100, r["exp_return"] * 100), fontsize=6.5,
+                         textcoords="offset points", xytext=(4, 3))
+    axes[0].set_xlabel("Volatility (%)")
+    axes[0].set_ylabel("Expected return (%)")
+    axes[0].set_title("Structured-credit tranche map (bubble = capital charge)")
+
+    w = sc["weights"][["benchmark", "same_risk", "capital_efficient"]]
+    x = np.arange(len(w.index))
+    bw = 0.27
+    for k, col in enumerate(w.columns):
+        axes[1].bar(x + (k - 1) * bw, w[col] * 100, bw, label=col)
+    axes[1].set_xticks(x, w.index, rotation=40, ha="right", fontsize=7)
+    axes[1].set_ylabel("Weight (%)")
+    axes[1].set_title("Benchmark vs same-risk vs capital-efficient mix")
+    axes[1].legend(fontsize=8)
+    save_chart(fig, "29_structured_credit")
+
+
 def chart_intra_asset(intra: dict) -> None:
     s = intra["summary"]
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
@@ -932,6 +958,30 @@ def write_full_report(results: dict) -> None:
             "sub-types on real index data - since it is both the strongest result here and the strategic growth area. "
             "Harvest only where dispersion is structural, size modestly, and rebalance slowly to keep turnover low."))
 
+    sc = results.get("structured_credit")
+    if sc is not None:
+        m.append("#### B9a. Granular structured-credit deep-dive\n")
+        m.append(story(
+            why="Structured credit is the strategic growth area and the standout same-risk result, so it earns its own "
+                "granular lens: CLOs AAA->BB (US/EU), ABS auto/card, RMBS prime/non-QM, CMBS conduit/SASB. It also splits "
+                "across two capital buckets (senior ~3%, mezz ~11%), so the *capital* angle bites here specifically.",
+            how="Each tranche carries a forward return/vol, a LAGIC capital category and a real index ticker hook. Risk is "
+                "empirical (tranche returns share the book's securitised factor plus dispersion). Two mixes are solved: "
+                "**same-risk** (max return at the benchmark volatility) and **capital-efficient** (max return per unit of "
+                "LAGIC capital).",
+            found=f"The same-risk mix adds **{sc['same_risk_uplift_bps']:+.0f} bps** at the benchmark volatility "
+                  f"({sc['benchmark']['exp_return']:.2%} -> {sc['same_risk']['exp_return']:.2%}). The capital-efficient "
+                  f"mix is more striking: by staying in **senior** tranches it lifts return on capital from "
+                  f"{sc['benchmark']['return_on_capital']:.2f}x to **{sc['capital_efficient']['return_on_capital']:.2f}x** "
+                  f"and cuts the capital charge from {sc['benchmark']['capital']:.2%} to {sc['capital_efficient']['capital']:.2%} "
+                  "for almost the same return - the mezzanine reach is not paid for on a capital basis.",
+            nxt="Wire the real CLO/ABS/RMBS/CMBS index series (the tickers are in config), add vintage and manager "
+                "dimensions, and model the capital *cliff* between senior and mezz explicitly - it is the dominant "
+                "consideration for an insurer growing this book."))
+        m.append(img("29_structured_credit", "Figure 21b. Structured-credit tranche map (bubble = capital) and the "
+                     "benchmark vs same-risk vs capital-efficient sub-allocation."))
+        m.append(_df_to_md(sc["weights"].round(3)) + "\n")
+
     gp = results.get("glide_path")
     if gp is not None:
         gt = gp["table"]
@@ -1033,6 +1083,10 @@ def generate_all(results: dict) -> None:
         save_table(results["pareto"]["table"].round(5), "pareto_search.csv")
     if results.get("glide_path"):
         save_table(results["glide_path"]["table"].round(5), "glide_path.csv")
+    if results.get("structured_credit"):
+        sc = results["structured_credit"]
+        save_table(sc["weights"].round(4), "structured_credit_weights.csv")
+        save_table(sc["tranches"].round(4), "structured_credit_tranches.csv")
     if results.get("lagic_full"):
         lf = results["lagic_full"]
         mod = pd.Series(lf["modules"])
@@ -1083,6 +1137,8 @@ def generate_all(results: dict) -> None:
         chart_glide_path(results["glide_path"])
     if results.get("lagic_full"):
         chart_capital_modules(results["lagic_full"])
+    if results.get("structured_credit"):
+        chart_structured_credit(results["structured_credit"])
     if results.get("factor_analysis"):
         chart_factor_attribution(results["factor_analysis"]["attribution"])
         chart_rolling_factor_betas(results["factor_analysis"]["rolling_betas"])

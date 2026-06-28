@@ -23,6 +23,7 @@ import optimizer
 import reporting
 import risk_attribution
 import stress_testing
+import structured_credit
 from data_loader import load_market_data
 from portfolio import baseline_portfolio
 from utils import ensure_dirs, load_config, set_plot_style
@@ -103,6 +104,7 @@ def build_results(regenerate: bool = False) -> dict:
         "factor_analysis": factor_analysis.run_factor_analysis(base, config),
         "pareto": pareto,
         "glide_path": glide_path.run_glide_path(config),
+        "structured_credit": structured_credit.run_structured_credit(market, config),
     }
 
 

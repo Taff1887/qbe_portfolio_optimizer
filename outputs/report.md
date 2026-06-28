@@ -366,6 +366,35 @@ Realised behaviour through the embedded historical episodes:
 
 **What to study next.** Build structured credit out **granularly** - CLO tranches by rating and vintage, US vs EU, ABS/RMBS/CMBS sub-types on real index data - since it is both the strongest result here and the strategic growth area. Harvest only where dispersion is structural, size modestly, and rebalance slowly to keep turnover low.
 
+#### B9a. Granular structured-credit deep-dive
+
+**Why this lens.** Structured credit is the strategic growth area and the standout same-risk result, so it earns its own granular lens: CLOs AAA->BB (US/EU), ABS auto/card, RMBS prime/non-QM, CMBS conduit/SASB. It also splits across two capital buckets (senior ~3%, mezz ~11%), so the *capital* angle bites here specifically.
+
+**How it is calculated.** Each tranche carries a forward return/vol, a LAGIC capital category and a real index ticker hook. Risk is empirical (tranche returns share the book's securitised factor plus dispersion). Two mixes are solved: **same-risk** (max return at the benchmark volatility) and **capital-efficient** (max return per unit of LAGIC capital).
+
+**What we found.** The same-risk mix adds **+40 bps** at the benchmark volatility (6.29% -> 6.70%). The capital-efficient mix is more striking: by staying in **senior** tranches it lifts return on capital from 1.23x to **2.10x** and cuts the capital charge from 5.13% to 3.00% for almost the same return - the mezzanine reach is not paid for on a capital basis.
+
+**What to study next.** Wire the real CLO/ABS/RMBS/CMBS index series (the tickers are in config), add vintage and manager dimensions, and model the capital *cliff* between senior and mezz explicitly - it is the dominant consideration for an insurer growing this book.
+
+![Figure 21b. Structured-credit tranche map (bubble = capital) and the benchmark vs same-risk vs capital-efficient sub-allocation.](charts/29_structured_credit.png)
+
+*Figure 21b. Structured-credit tranche map (bubble = capital) and the benchmark vs same-risk vs capital-efficient sub-allocation.*
+
+| metric | benchmark | same_risk | capital_efficient | max_sharpe |
+|---|---|---|---|---|
+| CLO AAA US | 0.2340 | 0.1860 | 0.2000 | 0.4000 |
+| CLO AAA EU | 0.1060 | 0.3410 | 0.4000 | 0.4000 |
+| CLO AA | 0.0850 | 0.2430 | 0.4000 | 0.1610 |
+| CLO A | 0.0640 | 0.1300 | 0.0000 | 0.0000 |
+| CLO BBB | 0.0640 | 0.0940 | 0.0000 | 0.0000 |
+| CLO BB | 0.0320 | 0.0070 | 0.0000 | 0.0000 |
+| ABS Auto | 0.1280 | 0.0000 | 0.0000 | 0.0390 |
+| ABS Card | 0.0740 | 0.0000 | 0.0000 | 0.0000 |
+| RMBS Prime | 0.1060 | 0.0000 | 0.0000 | 0.0000 |
+| RMBS Non-QM | 0.0430 | 0.0000 | 0.0000 | 0.0000 |
+| CMBS Conduit | 0.0320 | 0.0000 | 0.0000 | 0.0000 |
+| CMBS SASB | 0.0320 | 0.0000 | 0.0000 | 0.0000 |
+
 ### B10. Dynamic duration glide path (through-time earnings protection)
 
 **Why this lens.** Every lens so far is a *position* at a point in time. But the CFO's real lever is a *policy through time*: take interest-rate duration early in the plan year to immunise the remaining-year earnings against rate moves, then wind it down toward year-end as the number is banked. No point-in-time optimiser can see this - it is the gap the brief singled out, and the most novel piece here.
