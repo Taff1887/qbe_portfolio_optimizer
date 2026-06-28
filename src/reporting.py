@@ -652,6 +652,38 @@ def write_full_report(results: dict) -> None:
              "explicit: _Why this lens_ (why it is looked at), _What it means_, _How it is calculated_ (how it was "
              "researched and computed), _What we found_ (the result on this book), and _What to study next_.\n")
 
+    # ----------------------------------------------------- recommended actions
+    m.append("## Recommended actions (what the lenses point to)\n")
+    m.append("Three **complementary** levers stand out - they act on different parts of the book, so they stack rather "
+             "than compete:\n")
+    acts = []
+    if "Pareto-Balanced" in comp.index:
+        b, p = comp.loc["Baseline"], comp.loc["Pareto-Balanced"]
+        acts.append(f"1. **Re-shape the SAA toward the Pareto-Balanced book.** Same return ({p['exp_return']:.2%} vs "
+                    f"{b['exp_return']:.2%}) at lower volatility ({p['volatility']:.2%} vs {b['volatility']:.2%}), lower "
+                    f"capital ({p['capital_charge']:.2%} vs {b['capital_charge']:.2%}) and a smaller worst-case stress "
+                    f"({p['stress_loss']:.2%} vs {b['stress_loss']:.2%}). A strict improvement; phase in given "
+                    f"~{p['turnover']:.0%} turnover from today's book.")
+    sc = results.get("structured_credit")
+    if sc is not None:
+        acts.append(f"2. **Grow structured credit on a capital-efficient basis.** Within the sleeve, the capital-efficient "
+                    f"mix lifts return on capital from {sc['benchmark']['return_on_capital']:.2f}x to "
+                    f"{sc['capital_efficient']['return_on_capital']:.2f}x by staying senior - the strategic growth area, "
+                    f"and the mezzanine reach is not paid for on a capital basis.")
+    gp = results.get("glide_path")
+    if gp is not None:
+        gt = gp["table"]
+        adapt = gt.loc[[i for i in gt.index if i.startswith("Adaptive")][0]]
+        static = gt.loc[[i for i in gt.index if i.startswith("Static")][0]]
+        acts.append(f"3. **Run the duration book on an adaptive glide path.** Holding duration while behind the plan and "
+                    f"cutting once ahead lowers the plan-miss probability to {adapt['prob_miss_plan']:.0%} (vs "
+                    f"{static['prob_miss_plan']:.0%} static) at lower earnings volatility - protecting the earnings number "
+                    "without changing the SAA.")
+    acts.append("**Watch-outs from the risk lenses:** size risk for the *risk-off* regime (the book is ~40% more volatile "
+                "there, B11); the P&L is most sensitive to rates (a ~48bp move costs 2% of earnings, B1 reverse stress); "
+                "and the headline track record is mostly carry plus a one-off rates tailwind, not repeatable skill (B6).")
+    m.append("\n\n".join(acts) + "\n")
+
     # =========================================================== PART A
     m.append("## Part A - Portfolio construction philosophies\n")
     m.append("### A1. The philosophies\n")

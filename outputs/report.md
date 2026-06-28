@@ -15,6 +15,18 @@ The framing follows the way the problem was put to us: there are really **two bi
 
 **How to read each section below.** Every lens is written to the same five beats so the reasoning is explicit: _Why this lens_ (why it is looked at), _What it means_, _How it is calculated_ (how it was researched and computed), _What we found_ (the result on this book), and _What to study next_.
 
+## Recommended actions (what the lenses point to)
+
+Three **complementary** levers stand out - they act on different parts of the book, so they stack rather than compete:
+
+1. **Re-shape the SAA toward the Pareto-Balanced book.** Same return (5.12% vs 5.09%) at lower volatility (2.12% vs 3.28%), lower capital (1.74% vs 2.54%) and a smaller worst-case stress (-7.82% vs -11.26%). A strict improvement; phase in given ~73% turnover from today's book.
+
+2. **Grow structured credit on a capital-efficient basis.** Within the sleeve, the capital-efficient mix lifts return on capital from 1.23x to 2.10x by staying senior - the strategic growth area, and the mezzanine reach is not paid for on a capital basis.
+
+3. **Run the duration book on an adaptive glide path.** Holding duration while behind the plan and cutting once ahead lowers the plan-miss probability to 28% (vs 34% static) at lower earnings volatility - protecting the earnings number without changing the SAA.
+
+**Watch-outs from the risk lenses:** size risk for the *risk-off* regime (the book is ~40% more volatile there, B11); the P&L is most sensitive to rates (a ~48bp move costs 2% of earnings, B1 reverse stress); and the headline track record is mostly carry plus a one-off rates tailwind, not repeatable skill (B6).
+
 ## Part A - Portfolio construction philosophies
 
 ### A1. The philosophies
