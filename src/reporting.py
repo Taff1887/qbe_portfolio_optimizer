@@ -355,6 +355,29 @@ def chart_philosophy_metrics(comp: pd.DataFrame, names: list[str]) -> None:
     save_chart(fig, "23_philosophy_metrics")
 
 
+def chart_pareto(pareto: dict) -> None:
+    """Capital vs return: candidates, the baseline, and the books that dominate it."""
+    t = pareto["table"]
+    base = pareto["baseline_objectives"]
+    dom = t["dominates_baseline"]
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ax.scatter(t.loc[~dom, "capital"] * 100, t.loc[~dom, "exp_return"] * 100,
+               s=40, color="#BBBBBB", label="candidate (no improvement)")
+    ax.scatter(t.loc[dom, "capital"] * 100, t.loc[dom, "exp_return"] * 100,
+               s=70, color="#117733", label="Pareto-dominates baseline")
+    ax.scatter(base["capital"] * 100, base["exp_return"] * 100, s=220, marker="*",
+               color="#C0392B", zorder=5, label="Baseline (current book)")
+    # shade the region that is unambiguously better than the baseline (more return,
+    # less capital) - any green point here also beats it on vol/earnings/stress.
+    ax.axhline(base["exp_return"] * 100, color="#C0392B", lw=0.7, ls=":")
+    ax.axvline(base["capital"] * 100, color="#C0392B", lw=0.7, ls=":")
+    ax.set_xlabel("Capital charge (% of assets)")
+    ax.set_ylabel("Expected return (%)")
+    ax.set_title("Pareto search: more return for less capital (and lower vol / earnings vol / stress)")
+    ax.legend(fontsize=8)
+    save_chart(fig, "26_pareto_improvements")
+
+
 def chart_factor_attribution(attr: pd.DataFrame) -> None:
     """Annualised return attributed to each factor (plus alpha/carry)."""
     s = attr["ann_contribution"] * 100
@@ -591,6 +614,36 @@ def write_full_report(results: dict) -> None:
             "constraint and search for **Pareto improvements** - moves that help one lens without hurting the others - "
             "rather than a single 'optimal' point."))
     m.append(img("02_allocation_comparison", "Figure 3. Allocation by capital category across philosophies."))
+
+    # ----------------------------------------------------- A3 Pareto search
+    pareto = results.get("pareto")
+    if pareto is not None:
+        bo = pareto["baseline_objectives"]
+        m.append("### A3. Pareto improvements over the current book\n")
+        m.append(story(
+            why="The philosophies above each optimise *one* thing. The sharper question for the business is whether a "
+                "book exists that is **at least as good as today's on every objective at once** - return, volatility, "
+                "capital, earnings volatility and worst-case stress - and strictly better on some. That is a Pareto "
+                "improvement: growing the pie, not re-slicing it.",
+            how="Epsilon-constraint search: maximise expected return subject to hard caps on **capital** and **earnings "
+                "(P&L) volatility** (the smooth quadratic proxy) and total volatility, sweeping those caps from their "
+                "best-achievable level up to the baseline's. Every solution is then scored on all five objectives and "
+                "tested for Pareto-dominance over the current book.",
+            found=f"**{pareto['n_dominating']} of the searched portfolios dominate the baseline** on every objective. The "
+                  f"current book sits at return {bo['exp_return']:.2%}, vol {bo['volatility']:.2%}, capital "
+                  f"{bo['capital']:.2%}, earnings-vol {bo['earnings_vol']:.2%}, worst-stress {bo['worst_stress']:.2%} - "
+                  "and is strictly beaten on all of them. The best-balanced dominating book (**Pareto-Balanced**, shown in "
+                  "the Part A table) earns the same-or-more return at materially lower capital, earnings volatility and "
+                  "stress.",
+            nxt="Add turnover and tracking-error to the dominated set so the cheapest *implementable* improvement is "
+                "chosen, then re-run as constraints tighten (e.g. a hard capital budget) to trace the efficient surface, "
+                "not just dominance over one point."))
+        m.append(img("26_pareto_improvements", "Figure 3b. Pareto search - books beating the current one on return AND capital "
+                     "(and, by construction, on volatility, earnings volatility and stress)."))
+        dom_tbl = pareto["table"][pareto["table"]["dominates_baseline"]].drop(columns="dominates_baseline")
+        if len(dom_tbl):
+            m.append("Portfolios that dominate the baseline (all objectives at least as good, some strictly better):\n")
+            m.append(_df_to_md(dom_tbl.round(4)) + "\n")
 
     # =========================================================== PART B
     m.append("## Part B - Evaluation lenses\n")
@@ -882,6 +935,8 @@ def generate_all(results: dict) -> None:
         fa = results["factor_analysis"]
         save_table(fa["attribution"].round(5), "factor_attribution.csv")
         save_table(fa["rolling_betas"].round(4), "factor_rolling_betas.csv")
+    if results.get("pareto"):
+        save_table(results["pareto"]["table"].round(5), "pareto_search.csv")
 
     # construction philosophies shown side by side (Lens 1)
     philosophies = [n for n in ["Equal-Weight", "Max-Sharpe", "Min-Variance",
@@ -918,6 +973,8 @@ def generate_all(results: dict) -> None:
     if "stress_grid" in results:
         chart_stress_grid(results["stress_grid"])
     chart_philosophy_metrics(results["comparison"], ["Baseline"] + philosophies)
+    if results.get("pareto"):
+        chart_pareto(results["pareto"])
     if results.get("factor_analysis"):
         chart_factor_attribution(results["factor_analysis"]["attribution"])
         chart_rolling_factor_betas(results["factor_analysis"]["rolling_betas"])

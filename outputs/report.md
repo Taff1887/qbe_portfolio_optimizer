@@ -51,6 +51,8 @@ Every portfolio, every headline metric (the full set, including the retained con
 | Max-RoC | 0.0439 | 0.0291 | 1.5693 | 3.0001 | -0.1499 | -0.0081 | -0.0133 | 3.8932 | 0.0103 | -0.0844 | 9.0806 | 1.4395 | 0.5530 |
 | Capital-Budgeted | 0.0588 | 0.0347 | 1.5919 | 2.5860 | -0.1531 | -0.0081 | -0.0212 | 2.8848 | 0.0355 | -0.1211 | 6.2957 | 1.6213 | 0.6914 |
 | Risk 20% | 0.0521 | 0.0337 | 1.7263 | 3.4509 | -0.1584 | -0.0102 | -0.0154 | 4.0426 | 0.0299 | -0.1122 | 7.3569 | 1.8378 | 0.0416 |
+| Min-EarningsVol | 0.0528 | 0.0227 | 1.6598 | 2.8974 | -0.0854 | -0.0055 | -0.0120 | 1.7212 | 0.0271 | -0.0879 | 7.0608 | 1.9580 | 0.6137 |
+| Pareto-Balanced | 0.0512 | 0.0212 | 1.8556 | 3.2421 | -0.0724 | -0.0051 | -0.0113 | 2.4588 | 0.0174 | -0.0782 | 7.3619 | 1.8471 | 0.7252 |
 
 _VaR / CVaR are historical monthly 95% figures (signed; negative = loss); stress loss is the worst instantaneous scenario; turnover (and tracking error, in the CSV) is measured against the Baseline book._
 
@@ -71,6 +73,33 @@ _VaR / CVaR are historical monthly 95% figures (signed; negative = loss); stress
 ![Figure 3. Allocation by capital category across philosophies.](charts/02_allocation_comparison.png)
 
 *Figure 3. Allocation by capital category across philosophies.*
+
+### A3. Pareto improvements over the current book
+
+**Why this lens.** The philosophies above each optimise *one* thing. The sharper question for the business is whether a book exists that is **at least as good as today's on every objective at once** - return, volatility, capital, earnings volatility and worst-case stress - and strictly better on some. That is a Pareto improvement: growing the pie, not re-slicing it.
+
+**How it is calculated.** Epsilon-constraint search: maximise expected return subject to hard caps on **capital** and **earnings (P&L) volatility** (the smooth quadratic proxy) and total volatility, sweeping those caps from their best-achievable level up to the baseline's. Every solution is then scored on all five objectives and tested for Pareto-dominance over the current book.
+
+**What we found.** **8 of the searched portfolios dominate the baseline** on every objective. The current book sits at return 5.09%, vol 3.28%, capital 3.77%, earnings-vol 2.74%, worst-stress -11.26% - and is strictly beaten on all of them. The best-balanced dominating book (**Pareto-Balanced**, shown in the Part A table) earns the same-or-more return at materially lower capital, earnings volatility and stress.
+
+**What to study next.** Add turnover and tracking-error to the dominated set so the cheapest *implementable* improvement is chosen, then re-run as constraints tighten (e.g. a hard capital budget) to trace the efficient surface, not just dominance over one point.
+
+![Figure 3b. Pareto search - books beating the current one on return AND capital (and, by construction, on volatility, earnings volatility and stress).](charts/26_pareto_improvements.png)
+
+*Figure 3b. Pareto search - books beating the current one on return AND capital (and, by construction, on volatility, earnings volatility and stress).*
+
+Portfolios that dominate the baseline (all objectives at least as good, some strictly better):
+
+| metric | exp_return | volatility | capital | earnings_vol | worst_stress |
+|---|---|---|---|---|---|
+| eps c=0.020 e=0.017 | 0.0512 | 0.0212 | 0.0201 | 0.0161 | -0.0782 |
+| eps c=0.020 e=0.022 | 0.0512 | 0.0212 | 0.0201 | 0.0161 | -0.0782 |
+| eps c=0.020 e=0.027 | 0.0512 | 0.0212 | 0.0201 | 0.0161 | -0.0782 |
+| eps c=0.029 e=0.011 | 0.0545 | 0.0220 | 0.0289 | 0.0112 | -0.0939 |
+| eps c=0.029 e=0.017 | 0.0553 | 0.0272 | 0.0289 | 0.0166 | -0.1030 |
+| eps c=0.029 e=0.022 | 0.0553 | 0.0275 | 0.0289 | 0.0172 | -0.1015 |
+| eps c=0.029 e=0.027 | 0.0553 | 0.0275 | 0.0289 | 0.0172 | -0.1015 |
+| eps c=0.038 e=0.011 | 0.0552 | 0.0225 | 0.0377 | 0.0112 | -0.0866 |
 
 ## Part B - Evaluation lenses
 

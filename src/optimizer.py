@@ -210,6 +210,59 @@ def return_capital_budget_frontier(market: MarketData, config: dict, n_points: i
     return pd.DataFrame(rows)
 
 
+# ----------------------------------------------------- earnings-stability lens
+def _earnings_cov(market: MarketData) -> np.ndarray:
+    """Annualised covariance of per-asset monthly *P&L* contributions.
+
+    Only P&L-bucket (FVTPL) assets contribute price mark-to-market to earnings;
+    OCI assets contribute only constant carry, so their columns are zeroed (carry
+    has no variance). Earnings volatility is then sqrt(w' Sigma_pnl w) - a smooth,
+    quadratic, SLSQP-friendly proxy for the std of annual P&L.
+    """
+    meta = market.meta
+    R = market.returns[meta.index].to_numpy().astype(float).copy()
+    is_oci = (meta["accounting"] != "P&L").to_numpy()
+    R[:, is_oci] = 0.0
+    return np.cov(R, rowvar=False) * 12.0
+
+
+def earnings_volatility(market: MarketData, weights) -> float:
+    """Smooth annualised earnings (P&L) volatility for a weight vector."""
+    cov = _earnings_cov(market)
+    w = np.asarray(weights, dtype=float)
+    return float(np.sqrt(max(w @ cov @ w, 0.0)))
+
+
+def min_earnings_volatility(market: MarketData, config: dict) -> Portfolio:
+    """Minimise earnings (P&L) volatility subject to the insurer constraints."""
+    cov = _earnings_cov(market)
+    w = _solve(lambda w: w @ cov @ w, market, config)
+    return Portfolio(w, market, "Min-EarningsVol")
+
+
+def max_return_constrained(market: MarketData, config: dict, capital_budget: float | None = None,
+                           earnings_vol_budget: float | None = None, vol_budget: float | None = None,
+                           name: str = "Constrained") -> Portfolio:
+    """Maximise expected return subject to (optional) hard caps on capital charge,
+    earnings volatility and total volatility simultaneously - i.e. capital and
+    earnings stability as *constraints*, not afterthoughts. This is the engine
+    behind the Pareto search."""
+    mu, cov = _inputs(market)
+    m = mu.to_numpy()
+    extra = []
+    if capital_budget is not None:
+        ind, stress, R = _capital_components(market, config)
+        extra.append({"type": "ineq", "fun": lambda w, b=capital_budget: b - _smooth_capital(w, ind, stress, R)})
+    if earnings_vol_budget is not None:
+        ec = _earnings_cov(market)
+        extra.append({"type": "ineq", "fun": lambda w, b=earnings_vol_budget: b ** 2 - w @ ec @ w})
+    if vol_budget is not None:
+        S = cov.to_numpy()
+        extra.append({"type": "ineq", "fun": lambda w, b=vol_budget: b ** 2 - w @ S @ w})
+    w = _solve(lambda w: -(m @ w), market, config, extra_cons=extra)
+    return Portfolio(w, market, name)
+
+
 def run_optimisation(market: MarketData, config: dict) -> dict:
     """Convenience bundle for main.py / reporting."""
     return {

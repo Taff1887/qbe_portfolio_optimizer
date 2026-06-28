@@ -17,6 +17,7 @@ import earnings_risk
 import factor_analysis
 import intra_asset
 import lagic_capital
+import multi_objective
 import optimizer
 import reporting
 import risk_attribution
@@ -52,6 +53,20 @@ def build_results(regenerate: bool = False) -> dict:
         "Risk 20%": risk20,
     }
 
+    # --- multi-objective: search for Pareto improvements over the current book ---
+    min_evol = optimizer.min_earnings_volatility(market, config)
+    pareto = multi_objective.pareto_search(market, config, base, seeds={
+        "Max-Sharpe": portfolios["Max-Sharpe"],
+        "Min-Variance": portfolios["Min-Variance"],
+        "Min-EarningsVol": min_evol,
+        "Max-RoC": portfolios["Max-RoC"],
+        "Risk-Parity": portfolios["Risk-Parity"],
+    }, grid=4)
+    portfolios["Min-EarningsVol"] = min_evol
+    if pareto["best_portfolio"] is not None:
+        pareto["best_portfolio"].name = "Pareto-Balanced"
+        portfolios["Pareto-Balanced"] = pareto["best_portfolio"]
+
     stress = stress_testing.run_stress_tests(base, config)
     worst_total = float(stress["total_impact"].min())
     stress_grid = stress_testing.stress_matrix(portfolios, config)
@@ -78,6 +93,7 @@ def build_results(regenerate: bool = False) -> dict:
         "intra_asset": intra_asset.run_intra_asset(market, config),
         "earnings_risk": earnings_risk.run_earnings_risk(portfolios, config),
         "factor_analysis": factor_analysis.run_factor_analysis(base, config),
+        "pareto": pareto,
     }
 
 
