@@ -397,25 +397,26 @@ Realised behaviour through the embedded historical episodes:
 
 ### B10. Dynamic duration glide path (through-time earnings protection)
 
-**Why this lens.** Every lens so far is a *position* at a point in time. But the CFO's real lever is a *policy through time*: take interest-rate duration early in the plan year to immunise the remaining-year earnings against rate moves, then wind it down toward year-end as the number is banked. No point-in-time optimiser can see this - it is the gap the brief singled out, and the most novel piece here.
+**Why this lens.** Every lens so far is a *position* at a point in time. But the CFO's real lever is a *policy through time*: hold interest-rate duration early in the plan year to earn the carry needed to make the number, then wind it down as that carry is banked so you stop carrying rate risk on earnings already secured. No point-in-time optimiser can see this - it is the gap the brief singled out, and the most novel piece here.
 
-**What it means.** The rate exposure of the *remaining* year shrinks as the year runs off, so the duration needed to protect it declines too - a natural **glide path**. A static duration over-hedges late in the year (carrying rate risk on earnings already banked); too little under-hedges throughout.
+**What it means.** Duration is a genuine trade-off: it **earns a term premium** (the carry you need to clear the plan) but **bears rate risk**. A static duration over-holds risk all year; a glide winds it down on a fixed schedule; an **adaptive** policy holds duration while *behind* the plan pace and cuts it once *ahead* - banking the carry, then locking it in.
 
-**How it is calculated.** Stylised 12-month simulation: monthly earnings = carry - (d_t - h_t) x dr_t + non-rate noise, where the hedge target h_t = L x (months remaining)/12. Rate paths are block-bootstrapped from history (demeaned, so duration is a pure risk lever); the static level and the glide start are each optimised to minimise the plan-miss probability under common random numbers.
+**How it is calculated.** Stylised 12-month simulation: monthly earnings = base carry + term-premium x d_t - d_t x dr_t + non-rate noise, with base carry set below plan (so duration is needed) and rate paths block-bootstrapped from history (demeaned). The static level, glide start and adaptive trigger are each optimised to minimise the plan-miss probability under common random numbers; duration is capped at a realistic ALM limit.
 
-**What we found.** The optimised **glide path cuts earnings volatility to 1.29%** (vs 2.17% for a short, no-duration book), lifts the worst-case earnings floor (5% earnings-at-risk **2.67%** vs 1.36%) and lowers the plan-miss probability to **40%** - for the same expected earnings. Winding duration down as the year runs off beats any constant duration.
+**What we found.** From the same duration budget, **management style is what matters**. A short book cannot make the plan (65% miss). A static-high book lowers the miss to 34% but at high earnings volatility (5.41%) and an ugly tail (EaR -3.59%). The **adaptive glide path is best: plan-miss 28% at the lowest earnings volatility (2.64%)** - bank the carry early, de-risk once ahead.
 
-**What to study next.** Make the glide **path-dependent** (cut duration once cumulative earnings clear the plan, hold it while behind), drive it off the *actual* P&L-book duration and liability profile rather than a stylised L, and let the optimiser choose the whole monthly schedule (not just a linear wind-down).
+**What to study next.** Drive the policy off the *actual* P&L-book duration and liability profile (not a stylised term premium), let the optimiser choose the whole monthly schedule, and tie the trigger to the live earnings run-rate and a capital budget - a genuine dynamic asset-allocation overlay.
 
-![Figure 22. Left: duration held through the plan year by policy. Right: the resulting distribution of plan-year earnings - the glide path is the tightest around (and above) the plan.](charts/27_glide_path.png)
+![Figure 22. Left: duration held through the plan year by policy (the adaptive path cuts once ahead of plan). Right: the resulting distribution of plan-year earnings.](charts/27_glide_path.png)
 
-*Figure 22. Left: duration held through the plan year by policy. Right: the resulting distribution of plan-year earnings - the glide path is the tightest around (and above) the plan.*
+*Figure 22. Left: duration held through the plan year by policy (the adaptive path cuts once ahead of plan). Right: the resulting distribution of plan-year earnings.*
 
 | metric | mean_earnings | earnings_vol | prob_miss_plan | earnings_at_risk_5pc |
 |---|---|---|---|---|
-| Short (no duration) | 0.0480 | 0.0217 | 0.4412 | 0.0136 |
-| Static (d=2.5y) | 0.0478 | 0.0148 | 0.4140 | 0.0232 |
-| Glide (D0=5.6y -> 0) | 0.0480 | 0.0129 | 0.4028 | 0.0267 |
+| Short (no duration) | 0.0410 | 0.0101 | 0.6490 | 0.0244 |
+| Static (d=8.0y) | 0.0604 | 0.0541 | 0.3418 | -0.0359 |
+| Glide (D0=8.0y -> 0) | 0.0519 | 0.0335 | 0.3740 | -0.0065 |
+| Adaptive (hold 8.0y, cut when ahead) | 0.0449 | 0.0264 | 0.2752 | -0.0096 |
 
 ### B11. Regime-conditional risk (correlations are not constant)
 

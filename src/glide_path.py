@@ -68,24 +68,38 @@ def _bootstrap_paths(changes: np.ndarray, n_paths: int, block: int, seed: int) -
     return out
 
 
-def _hedge_target(L: float) -> np.ndarray:
-    """Declining hedge target h_t = L * remaining/12 over the 12 months."""
-    remaining = (MONTHS_PER_YEAR - np.arange(MONTHS_PER_YEAR)) / MONTHS_PER_YEAR
-    return L * remaining
-
-
 def _earnings(d_path: np.ndarray, rate_paths: np.ndarray, noise: np.ndarray,
-              carry_m: float, L: float) -> np.ndarray:
-    """Plan-year earnings for a duration schedule across all simulated rate paths.
+              base_carry_m: float, tp_m: float) -> np.ndarray:
+    """Plan-year earnings for a (possibly time-varying) duration schedule.
 
-    Earnings = carry - sum_t (d_t - h_t) dr_t + idiosyncratic (non-rate) noise.
-    The noise (same draws for every policy - common random numbers) is the
-    spread/credit/equity earnings variation a rate hedge cannot remove, so the
-    best policy minimises *rate* earnings variance but never reaches zero.
+    Each month duration `d_t` both *earns a term premium* (tp_m per year of
+    duration - the carry you need to clear the plan) and *bears rate risk*
+    (-d_t * dr_t). Earnings = base carry + term-premium carry - rate MtM + noise.
+    The trade-off is real: you need duration to make the number, but it is risk.
     """
-    h = _hedge_target(L)
-    rate_impact = ((d_path - h)[None, :] * rate_paths).sum(axis=1)
-    return carry_m * MONTHS_PER_YEAR - rate_impact + noise.sum(axis=1)
+    carry = base_carry_m * MONTHS_PER_YEAR + tp_m * d_path.sum()
+    rate_impact = (d_path[None, :] * rate_paths).sum(axis=1)
+    return carry - rate_impact + noise.sum(axis=1)
+
+
+def _earnings_adaptive(d0: float, rate_paths: np.ndarray, noise: np.ndarray,
+                       base_carry_m: float, tp_m: float, plan: float) -> tuple[np.ndarray, np.ndarray]:
+    """Path-dependent policy: hold duration d0 while cumulative earnings are behind
+    the plan pace, then cut to zero once ahead (bank the carry, then de-risk).
+
+    Returns (plan-year earnings, average duration schedule across paths).
+    """
+    n = rate_paths.shape[0]
+    cum = np.zeros(n)
+    held = np.zeros((n, MONTHS_PER_YEAR))
+    pace = plan / MONTHS_PER_YEAR
+    for t in range(MONTHS_PER_YEAR):
+        ahead = cum >= pace * t                       # banked enough so far?
+        d_t = np.where(ahead, 0.0, d0)                # cut once ahead, else hold
+        held[:, t] = d_t
+        e_t = base_carry_m + tp_m * d_t - d_t * rate_paths[:, t] + noise[:, t]
+        cum = cum + e_t
+    return cum, held.mean(axis=0)
 
 
 def _metrics(E: np.ndarray, plan: float) -> dict:
@@ -102,10 +116,13 @@ def run_glide_path(config: dict, n_paths: int = 4000) -> dict:
     pcfg = config["portfolio"]
     gcfg = config.get("glide_path", {})
     plan = pcfg["plan_return_target"]
-    # The book carries a small buffer above plan (running yield > plan target), so
-    # lower earnings *variance* translates directly into a lower plan-miss chance.
-    carry_ann = gcfg.get("carry_annual", plan + 0.003)
-    carry_m = carry_ann / MONTHS_PER_YEAR
+    # Base carry is set BELOW plan, so the book *needs* duration's term premium to
+    # make the number - but duration is also rate risk. That tension is the lever.
+    base_carry_ann = gcfg.get("base_carry_annual", plan - 0.004)
+    base_carry_m = base_carry_ann / MONTHS_PER_YEAR
+    tp_ann = gcfg.get("term_premium_per_year", 0.0025)   # extra carry per year of duration
+    max_dur = gcfg.get("max_duration", 8.0)              # realistic ALM cap on surplus duration
+    tp_m = tp_ann / MONTHS_PER_YEAR
     L = gcfg.get("plan_rate_sensitivity", config["currencies"]["AUD"]["liability_duration"])
     seed = config["meta"].get("random_seed", 7)
 
@@ -113,36 +130,37 @@ def run_glide_path(config: dict, n_paths: int = 4000) -> dict:
     if gcfg.get("demean_rates", True):
         changes = changes - changes.mean()               # duration as a pure risk lever, not a rate bet
     paths = _bootstrap_paths(changes, n_paths, block=3, seed=seed)
-    # Idiosyncratic (non-rate) monthly earnings noise, shared across policies.
-    idio_ann = gcfg.get("idio_earnings_vol", 0.012)
+    idio_ann = gcfg.get("idio_earnings_vol", 0.010)
     rng = np.random.default_rng(seed + 1)
     noise = rng.normal(0.0, idio_ann / np.sqrt(MONTHS_PER_YEAR), (n_paths, MONTHS_PER_YEAR))
 
     rem = (MONTHS_PER_YEAR - np.arange(MONTHS_PER_YEAR)) / MONTHS_PER_YEAR
-    grid = np.linspace(0.0, 2.0 * L, 41)
-    static = min(grid, key=lambda D: _metrics(_earnings(np.full(MONTHS_PER_YEAR, D), paths, noise, carry_m, L), plan)["prob_miss_plan"])
-    d0 = min(grid, key=lambda D0: _metrics(_earnings(D0 * rem, paths, noise, carry_m, L), plan)["prob_miss_plan"])
+    grid = np.linspace(0.0, max_dur, 41)
+    static = min(grid, key=lambda D: _metrics(_earnings(np.full(MONTHS_PER_YEAR, D), paths, noise, base_carry_m, tp_m), plan)["prob_miss_plan"])
+    glide0 = min(grid, key=lambda D0: _metrics(_earnings(D0 * rem, paths, noise, base_carry_m, tp_m), plan)["prob_miss_plan"])
+    adapt0 = min(grid, key=lambda D0: _metrics(_earnings_adaptive(D0, paths, noise, base_carry_m, tp_m, plan)[0], plan)["prob_miss_plan"])
 
+    adapt_E, adapt_sched = _earnings_adaptive(adapt0, paths, noise, base_carry_m, tp_m, plan)
     policies = {
-        "Short (no duration)": np.zeros(MONTHS_PER_YEAR),
-        f"Static (d={static:.1f}y)": np.full(MONTHS_PER_YEAR, static),
-        f"Glide (D0={d0:.1f}y -> 0)": d0 * rem,
+        "Short (no duration)": (np.zeros(MONTHS_PER_YEAR), _earnings(np.zeros(MONTHS_PER_YEAR), paths, noise, base_carry_m, tp_m)),
+        f"Static (d={static:.1f}y)": (np.full(MONTHS_PER_YEAR, static), _earnings(np.full(MONTHS_PER_YEAR, static), paths, noise, base_carry_m, tp_m)),
+        f"Glide (D0={glide0:.1f}y -> 0)": (glide0 * rem, _earnings(glide0 * rem, paths, noise, base_carry_m, tp_m)),
+        f"Adaptive (hold {adapt0:.1f}y, cut when ahead)": (adapt_sched, adapt_E),
     }
     rows, dists, schedules = {}, {}, {}
-    for name, d_path in policies.items():
-        E = _earnings(d_path, paths, noise, carry_m, L)
+    for name, (d_path, E) in policies.items():
         rows[name] = _metrics(E, plan)
         dists[name] = E
         schedules[name] = d_path
 
-    table = pd.DataFrame(rows).T
     return {
-        "table": table,
+        "table": pd.DataFrame(rows).T,
         "distributions": dists,
         "schedules": schedules,
         "plan": plan,
         "L": L,
         "static_opt": static,
-        "glide_opt_d0": d0,
+        "glide_opt_d0": glide0,
+        "adaptive_opt_d0": adapt0,
         "months": np.arange(1, MONTHS_PER_YEAR + 1),
     }

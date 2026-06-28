@@ -1,4 +1,5 @@
 ,mean_earnings,earnings_vol,prob_miss_plan,earnings_at_risk_5pc
-Short (no duration),0.04801,0.02169,0.44125,0.01362
-Static (d=2.5y),0.04782,0.01477,0.414,0.02316
-Glide (D0=5.6y -> 0),0.04804,0.0129,0.40275,0.0267
+Short (no duration),0.04103,0.01009,0.649,0.02436
+Static (d=8.0y),0.0604,0.05409,0.34175,-0.03585
+Glide (D0=8.0y -> 0),0.0519,0.03347,0.374,-0.00654
+"Adaptive (hold 8.0y, cut when ahead)",0.04486,0.02638,0.27525,-0.00964

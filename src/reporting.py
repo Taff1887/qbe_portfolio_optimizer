@@ -1008,31 +1008,34 @@ def write_full_report(results: dict) -> None:
     gp = results.get("glide_path")
     if gp is not None:
         gt = gp["table"]
-        names = list(gt.index)
-        short_row, glide_row = gt.iloc[0], gt.iloc[-1]
+        short_row = gt.loc[[i for i in gt.index if i.startswith("Short")][0]]
+        static_row = gt.loc[[i for i in gt.index if i.startswith("Static")][0]]
+        adapt_row = gt.loc[[i for i in gt.index if i.startswith("Adaptive")][0]]
         m.append("### B10. Dynamic duration glide path (through-time earnings protection)\n")
         m.append(story(
             why="Every lens so far is a *position* at a point in time. But the CFO's real lever is a *policy through "
-                "time*: take interest-rate duration early in the plan year to immunise the remaining-year earnings against "
-                "rate moves, then wind it down toward year-end as the number is banked. No point-in-time optimiser can see "
-                "this - it is the gap the brief singled out, and the most novel piece here.",
-            means="The rate exposure of the *remaining* year shrinks as the year runs off, so the duration needed to "
-                  "protect it declines too - a natural **glide path**. A static duration over-hedges late in the year "
-                  "(carrying rate risk on earnings already banked); too little under-hedges throughout.",
-            how="Stylised 12-month simulation: monthly earnings = carry - (d_t - h_t) x dr_t + non-rate noise, where the "
-                "hedge target h_t = L x (months remaining)/12. Rate paths are block-bootstrapped from history (demeaned, so "
-                "duration is a pure risk lever); the static level and the glide start are each optimised to minimise the "
-                "plan-miss probability under common random numbers.",
-            found=f"The optimised **glide path cuts earnings volatility to {glide_row['earnings_vol']:.2%}** (vs "
-                  f"{short_row['earnings_vol']:.2%} for a short, no-duration book), lifts the worst-case earnings floor "
-                  f"(5% earnings-at-risk **{glide_row['earnings_at_risk_5pc']:.2%}** vs {short_row['earnings_at_risk_5pc']:.2%}) "
-                  f"and lowers the plan-miss probability to **{glide_row['prob_miss_plan']:.0%}** - for the same expected "
-                  "earnings. Winding duration down as the year runs off beats any constant duration.",
-            nxt="Make the glide **path-dependent** (cut duration once cumulative earnings clear the plan, hold it while "
-                "behind), drive it off the *actual* P&L-book duration and liability profile rather than a stylised L, and "
-                "let the optimiser choose the whole monthly schedule (not just a linear wind-down)."))
-        m.append(img("27_glide_path", "Figure 22. Left: duration held through the plan year by policy. Right: the resulting "
-                     "distribution of plan-year earnings - the glide path is the tightest around (and above) the plan."))
+                "time*: hold interest-rate duration early in the plan year to earn the carry needed to make the number, "
+                "then wind it down as that carry is banked so you stop carrying rate risk on earnings already secured. No "
+                "point-in-time optimiser can see this - it is the gap the brief singled out, and the most novel piece here.",
+            means="Duration is a genuine trade-off: it **earns a term premium** (the carry you need to clear the plan) but "
+                  "**bears rate risk**. A static duration over-holds risk all year; a glide winds it down on a fixed "
+                  "schedule; an **adaptive** policy holds duration while *behind* the plan pace and cuts it once *ahead* - "
+                  "banking the carry, then locking it in.",
+            how="Stylised 12-month simulation: monthly earnings = base carry + term-premium x d_t - d_t x dr_t + non-rate "
+                "noise, with base carry set below plan (so duration is needed) and rate paths block-bootstrapped from "
+                "history (demeaned). The static level, glide start and adaptive trigger are each optimised to minimise the "
+                "plan-miss probability under common random numbers; duration is capped at a realistic ALM limit.",
+            found=f"From the same duration budget, **management style is what matters**. A short book cannot make the plan "
+                  f"({short_row['prob_miss_plan']:.0%} miss). A static-high book lowers the miss to "
+                  f"{static_row['prob_miss_plan']:.0%} but at high earnings volatility ({static_row['earnings_vol']:.2%}) "
+                  f"and an ugly tail (EaR {static_row['earnings_at_risk_5pc']:.2%}). The **adaptive glide path is best: "
+                  f"plan-miss {adapt_row['prob_miss_plan']:.0%} at the lowest earnings volatility "
+                  f"({adapt_row['earnings_vol']:.2%})** - bank the carry early, de-risk once ahead.",
+            nxt="Drive the policy off the *actual* P&L-book duration and liability profile (not a stylised term premium), "
+                "let the optimiser choose the whole monthly schedule, and tie the trigger to the live earnings run-rate "
+                "and a capital budget - a genuine dynamic asset-allocation overlay."))
+        m.append(img("27_glide_path", "Figure 22. Left: duration held through the plan year by policy (the adaptive path "
+                     "cuts once ahead of plan). Right: the resulting distribution of plan-year earnings."))
         m.append(_df_to_md(gt.round(4)) + "\n")
 
     rg = results.get("regimes")
